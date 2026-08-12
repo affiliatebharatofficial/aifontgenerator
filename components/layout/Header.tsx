@@ -29,6 +29,9 @@ export async function Header() {
           <Link href="/generate" className="hover:text-[#f4f4f5] transition-colors">
             Generator
           </Link>
+          <Link href="/fancy-font-generator" className="hover:text-[#f4f4f5] transition-colors text-[#e05638]">
+            Fancy Text
+          </Link>
           <Link href="/ai-font-generator" className="hover:text-[#f4f4f5] transition-colors">
             Fonts
           </Link>

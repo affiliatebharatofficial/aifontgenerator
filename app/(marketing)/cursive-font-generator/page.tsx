@@ -4,11 +4,13 @@ import { ArrowRight, Sparkles, Tag } from 'lucide-react';
 import { constructMetadata } from '@/lib/seo/metadata';
 import { Breadcrumbs } from '@/components/marketing/Breadcrumbs';
 import { FaqSection } from '@/components/marketing/FaqSection';
+import { FancyFontGenerator } from '@/components/fancy-font/FancyFontGenerator';
+import { FancyVsRealFontSection } from '@/components/fancy-font/FancyVsRealFontSection';
 
 export const metadata: Metadata = constructMetadata({
   title: 'Cursive Font Generator — Flowing Script & Calligraphic Typefaces',
   description:
-    'Generate elegant cursive script fonts with continuous pen strokes, calligraphic swashes, and flowing baselines in TTF, OTF, and WOFF2.',
+    'Generate elegant cursive script fonts with continuous pen strokes, calligraphic swashes, and flowing baselines in TTF, OTF, WOFF2 or copy instant Unicode script text.',
   path: '/cursive-font-generator',
 });
 
@@ -24,11 +26,15 @@ export default function CursiveFontGeneratorPage() {
       answer:
         'Yes. Our WOFF2 web binaries load efficiently on modern websites and can be used for wedding invitation headlines, luxury branding, and editorial banners.',
     },
+    {
+      question: 'Can I copy instant Unicode cursive text for Instagram bios?',
+      answer:
+        'Yes! Use our instant Fancy Font Generator section below to copy mathematical script and cursive Unicode text directly to your clipboard.',
+    },
   ];
 
   return (
     <div className="min-h-screen flex flex-col bg-[#09090b] text-[#f4f4f5] font-sans selection:bg-[#e05638]/20 selection:text-[#f4f4f5]">
-      
       <main className="flex-1 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 w-full space-y-16">
         <Breadcrumbs items={[{ name: 'Cursive Font Generator', href: '/cursive-font-generator' }]} />
 
@@ -41,18 +47,29 @@ export default function CursiveFontGeneratorPage() {
             <span className="italic text-[#a1a1aa]">Script Generator.</span>
           </h1>
           <p className="text-base sm:text-xl text-[#a1a1aa] font-normal leading-relaxed">
-            Create flowing cursive scripts, formal copperplate calligraphy, and expressive brush lettering. Export valid TTF, OTF, and WOFF2 binaries.
+            Create flowing cursive scripts, formal copperplate calligraphy, and expressive brush lettering. Export valid TTF, OTF, and WOFF2 binaries or copy instant Unicode script text.
           </p>
 
-          <div className="pt-4">
+          <div className="pt-4 flex flex-wrap gap-4">
             <Link
               href="/generate"
               className="inline-flex items-center gap-2 px-8 py-4 rounded-md text-xs font-mono uppercase font-bold tracking-wider bg-[#e05638] hover:bg-[#c84326] text-white transition-all shadow-md"
             >
-              <span>Synthesize Cursive Font</span>
+              <span>Synthesize Cursive Font (TTF/OTF)</span>
               <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
+        </section>
+
+        {/* Instant Unicode Cursive Section */}
+        <section className="space-y-6">
+          <div className="space-y-2">
+            <h2 className="font-display text-2xl text-[#f4f4f5] uppercase">Instant Cursive Unicode Text</h2>
+            <p className="text-xs text-[#a1a1aa]">
+              Transform text into mathematical script Unicode characters for instant copy and paste to Instagram, TikTok, and bios.
+            </p>
+          </div>
+          <FancyFontGenerator initialText="Cursive Script" initialFilter="script" />
         </section>
 
         {/* Style Characteristics & Prompt Examples */}
@@ -82,9 +99,10 @@ export default function CursiveFontGeneratorPage() {
           </div>
         </section>
 
+        <FancyVsRealFontSection />
+
         <FaqSection faqs={faqs} />
       </main>
-
-          </div>
+    </div>
   );
 }

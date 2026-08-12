@@ -20,6 +20,11 @@ export function Footer() {
             </h3>
             <ul className="space-y-2 text-xs font-medium text-[#71717a]">
               <li>
+                <Link href="/fancy-font-generator" className="hover:text-[#f4f4f5] transition-colors font-bold text-[#e05638]">
+                  Fancy Font Generator
+                </Link>
+              </li>
+              <li>
                 <Link href="/generate" className="hover:text-[#f4f4f5] transition-colors">
                   Font Generator
                 </Link>
