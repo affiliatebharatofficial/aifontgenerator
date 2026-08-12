@@ -87,6 +87,7 @@ export default async function GeneratePage({
 
         <GeneratorForm
           usageCount={usageInfo.count}
+          usageLimit={usageInfo.limit}
           initialCategory={matchedCat}
           parentGen={parentGen}
         />

@@ -34,10 +34,12 @@ import { RotateCcw } from 'lucide-react';
 
 export function GeneratorForm({
   usageCount,
+  usageLimit = 10,
   initialCategory,
   parentGen,
 }: {
   usageCount: number;
+  usageLimit?: number;
   initialCategory?: FontCategory;
   parentGen?: FontGeneration;
 }) {
@@ -60,7 +62,7 @@ export function GeneratorForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const isLimitReached = usageCount >= DAILY_GENERATION_LIMIT;
+  const isLimitReached = usageCount >= usageLimit;
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -134,10 +136,10 @@ export function GeneratorForm({
           <Lock className="w-4 h-4 shrink-0 mt-0.5" />
           <div>
             <p className="font-semibold uppercase tracking-wider font-mono">
-              Daily Limit Reached ({usageCount}/{DAILY_GENERATION_LIMIT})
+              Daily Limit Reached ({usageCount}/{usageLimit})
             </p>
             <p className="text-[11px] text-amber-400/80 mt-0.5">
-              You have submitted {DAILY_GENERATION_LIMIT} generations today. You can manage existing fonts or generate again tomorrow.
+              You have submitted {usageLimit} generations today. You can manage existing fonts or generate again tomorrow.
             </p>
           </div>
         </div>
@@ -338,7 +340,7 @@ export function GeneratorForm({
           <div className="p-4 border border-[#27272a] bg-[#121215] rounded-md flex items-center justify-between text-xs font-mono text-[#a1a1aa]">
             <span>Today&apos;s Allowance Quota</span>
             <span className="font-bold text-[#f4f4f5]">
-              {usageCount} / {DAILY_GENERATION_LIMIT} Generations Used
+              {usageCount} / {usageLimit} Generations Used
             </span>
           </div>
         </div>

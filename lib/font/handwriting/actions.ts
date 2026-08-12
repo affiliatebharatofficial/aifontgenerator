@@ -29,7 +29,7 @@ export async function analyzeHandwritingAction(
       success: false,
       detectedCharacters: [],
       missingCharacters: [],
-      error: `You have reached your daily limit of ${DAILY_GENERATION_LIMIT} font generations. Please try again tomorrow.`,
+      error: `You have reached your daily limit of ${usageInfo.limit} font generations. Please try again tomorrow.`,
     };
   }
 
@@ -60,7 +60,7 @@ export async function compileHandwritingFontAction(input: {
   if (usageInfo.isLimitReached) {
     return {
       success: false,
-      error: `You have reached your daily limit of ${DAILY_GENERATION_LIMIT} font generations. Please try again tomorrow.`,
+      error: `You have reached your daily limit of ${usageInfo.limit} font generations. Please try again tomorrow.`,
     };
   }
 

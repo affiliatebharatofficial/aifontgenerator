@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getCurrentUserProfile } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
-import { DAILY_GENERATION_LIMIT } from '@/lib/generations/constants';
+import { getUserDailyUsage } from '@/lib/generations/service';
 import { ArrowRight } from 'lucide-react';
 import type { FontGeneration } from '@/types/database';
 
@@ -58,16 +58,8 @@ export default async function DashboardPage() {
   const processingCount = generations.filter((g) => g.status === 'processing' || g.status === 'pending').length;
   const failedCount = generations.filter((g) => g.status === 'failed').length;
 
-  // Fetch daily usage count
-  const todayStr = new Date().toISOString().split('T')[0];
-  const { data: usageData } = await supabase
-    .from('generation_usage')
-    .select('generation_count')
-    .eq('user_id', user.id)
-    .eq('usage_date', todayStr)
-    .single();
-
-  const todayUsage = usageData?.generation_count ?? 0;
+  // Fetch dynamic daily usage & effective limit
+  const usageInfo = await getUserDailyUsage(user.id);
   const recentGenerations = generations.slice(0, 5);
 
   return (
@@ -97,7 +89,7 @@ export default async function DashboardPage() {
         <div className="p-4 border border-[#27272a] bg-[#121215] rounded-md space-y-1">
           <span className="text-[#71717a] uppercase text-[10px]">DAILY ALLOWANCE</span>
           <p className="text-xl font-bold text-[#f4f4f5]">
-            {todayUsage} / {DAILY_GENERATION_LIMIT} Used
+            {usageInfo.count} / {usageInfo.limit} Used
           </p>
         </div>
 
