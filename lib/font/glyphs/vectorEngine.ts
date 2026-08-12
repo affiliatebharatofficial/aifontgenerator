@@ -1,55 +1,167 @@
 import { Path, Glyph } from 'opentype.js';
 import type { FontSpecification } from '../specification/types';
 
+export type TypographicGenre =
+  | 'sans-serif'
+  | 'serif'
+  | 'handwritten'
+  | 'futuristic'
+  | 'bubble'
+  | 'gothic'
+  | 'bold-display'
+  | 'pixel'
+  | 'monospace';
+
 export class GlyphVectorEngine {
   private spec: FontSpecification;
+  private genre: TypographicGenre;
   private stem: number;
   private capH: number;
   private xH: number;
   private asc: number;
   private desc: number;
-  private isHorror: boolean;
-  private isSerif: boolean;
-  private isHandwritten: boolean;
-  private isPixel: boolean;
+  private slantAngle: number;
+  private widthScale: number;
+  private contrastRatio: number;
+  private cornerRadius: number;
 
   constructor(spec: FontSpecification) {
     this.spec = spec;
-    this.stem = spec.stemWidth || 80;
-    this.capH = spec.capHeight || 700;
-    this.xH = spec.xHeight || 500;
-    this.asc = spec.ascender || 800;
-    this.desc = spec.descender || -200;
 
     const p = (spec.prompt || '').toLowerCase();
     const c = (spec.category || '').toLowerCase();
     const s = (spec.style || '').toLowerCase();
     const d = (spec.designDescription || '').toLowerCase();
     const n = (spec.fontName || '').toLowerCase();
-
     const textAll = `${p} ${c} ${s} ${d} ${n}`;
 
-    const horrorKeywords = [
-      'horror', 'gothic', 'terrifying', 'dark', 'spooky', 'haunted',
-      'creepy', 'vampire', 'occult', 'evil', 'witch', 'demon', 'monster',
-      'blood', 'sinister', 'cursed', 'forbidden', 'fantasy', 'threat', 'scary',
-      'jagged', 'distorted', 'unsettling', 'decay'
-    ];
+    // 1. Determine Typographic Genre accurately
+    if (
+      textAll.includes('pixel') ||
+      textAll.includes('8bit') ||
+      textAll.includes('arcade') ||
+      c === 'pixel'
+    ) {
+      this.genre = 'pixel';
+    } else if (
+      textAll.includes('gothic') ||
+      textAll.includes('blackletter') ||
+      textAll.includes('medieval') ||
+      textAll.includes('fraktur') ||
+      c === 'blackletter'
+    ) {
+      this.genre = 'gothic';
+    } else if (
+      textAll.includes('bubble') ||
+      textAll.includes('balloon') ||
+      textAll.includes('rounded') ||
+      textAll.includes('cute') ||
+      textAll.includes('comic') ||
+      textAll.includes('cartoon') ||
+      textAll.includes('playful')
+    ) {
+      this.genre = 'bubble';
+    } else if (
+      textAll.includes('futuristic') ||
+      textAll.includes('gaming') ||
+      textAll.includes('cyberpunk') ||
+      textAll.includes('techno') ||
+      textAll.includes('sci-fi') ||
+      textAll.includes('angular') ||
+      textAll.includes('square')
+    ) {
+      this.genre = 'futuristic';
+    } else if (
+      textAll.includes('handwritten') ||
+      textAll.includes('script') ||
+      textAll.includes('cursive') ||
+      textAll.includes('calligraph') ||
+      textAll.includes('signature') ||
+      textAll.includes('brush') ||
+      c === 'handwritten' ||
+      c === 'script'
+    ) {
+      this.genre = 'handwritten';
+    } else if (
+      textAll.includes('bold') ||
+      textAll.includes('heavy') ||
+      textAll.includes('poster') ||
+      textAll.includes('black') ||
+      textAll.includes('impact') ||
+      c === 'display'
+    ) {
+      this.genre = 'bold-display';
+    } else if (
+      textAll.includes('mono') ||
+      textAll.includes('code') ||
+      textAll.includes('terminal') ||
+      c === 'monospace'
+    ) {
+      this.genre = 'monospace';
+    } else if (
+      (c.includes('serif') && !c.includes('sans')) ||
+      (s.includes('serif') && !s.includes('sans')) ||
+      (p.includes('serif') && !p.includes('sans')) ||
+      textAll.includes('luxury') ||
+      textAll.includes('editorial') ||
+      textAll.includes('elegant') ||
+      textAll.includes('roman')
+    ) {
+      this.genre = 'serif';
+    } else {
+      this.genre = 'sans-serif';
+    }
 
-    this.isHorror = horrorKeywords.some((k) => textAll.includes(k));
-    this.isSerif = c.includes('serif') || s.includes('serif') || textAll.includes('serif');
-    this.isHandwritten = c.includes('script') || c.includes('hand') || s.includes('hand');
-    this.isPixel = c.includes('pixel') || s.includes('pixel');
+    // 2. Resolve metrics & stems
+    this.stem = Math.max(35, Math.min(220, spec.stemWidth || 80));
+    this.capH = spec.capHeight || 700;
+    this.xH = spec.xHeight || 500;
+    this.asc = spec.ascender || 800;
+    this.desc = spec.descender || -200;
 
-    // Adjust parameters for Horror / Gothic style
-    if (this.isHorror) {
-      this.capH = Math.min(850, (spec.capHeight || 700) + 60);
-      this.asc = Math.min(920, (spec.ascender || 800) + 70);
+    // 3. Width Scale (Condensed, Normal, Expanded)
+    const w = (spec.width || '').toLowerCase();
+    if (w.includes('condensed') || textAll.includes('condensed') || textAll.includes('narrow')) {
+      this.widthScale = 0.82;
+    } else if (w.includes('expanded') || textAll.includes('expanded') || textAll.includes('wide')) {
+      this.widthScale = 1.22;
+    } else {
+      this.widthScale = 1.0;
+    }
+
+    // 4. Slant Angle (Italic / Oblique / Script)
+    const st = (spec.style || '').toLowerCase();
+    if (st.includes('italic') || st.includes('oblique') || textAll.includes('italic') || textAll.includes('slanted')) {
+      this.slantAngle = 0.22; // ~12.5 degrees
+    } else if (this.genre === 'handwritten') {
+      this.slantAngle = 0.16; // ~9 degrees natural script slant
+    } else {
+      this.slantAngle = 0;
+    }
+
+    // 5. Stroke Contrast (Thick vertical vs thin horizontal)
+    if (this.genre === 'serif') {
+      this.contrastRatio = 0.38; // Rich classic contrast
+    } else if (this.genre === 'bold-display') {
+      this.contrastRatio = 0.65;
+    } else if (this.genre === 'futuristic') {
+      this.contrastRatio = 0.9;
+    } else {
+      this.contrastRatio = 0.85; // Clean uniform sans
+    }
+
+    // 6. Corner rounding radius
+    if (this.genre === 'bubble') {
+      this.cornerRadius = 24;
+    } else if (this.genre === 'handwritten') {
+      this.cornerRadius = 14;
+    } else {
+      this.cornerRadius = 0;
     }
   }
 
   /**
-   * Generates a complete array of opentype.Glyph objects based on the FontSpecification.
+   * Main entry point: Generates complete glyph repertoire based on the specification.
    */
   public generateGlyphs(): Glyph[] {
     const glyphs: Glyph[] = [];
@@ -58,11 +170,12 @@ export class GlyphVectorEngine {
     glyphs.push(this.createNotDefGlyph());
 
     // 2. Space glyph (Unicode 32)
+    const spaceWidth = this.genre === 'monospace' ? 600 : Math.round(300 * this.widthScale);
     glyphs.push(
       new Glyph({
         name: 'space',
         unicode: 32,
-        advanceWidth: this.isHorror ? 220 : 280,
+        advanceWidth: spaceWidth,
         path: new Path(),
       })
     );
@@ -71,7 +184,7 @@ export class GlyphVectorEngine {
     if (this.spec.characterSet.uppercase) {
       for (let i = 65; i <= 90; i++) {
         const char = String.fromCharCode(i);
-        glyphs.push(this.createUppercaseGlyph(char, i));
+        glyphs.push(this.createGlyphForChar(char, i, true));
       }
     }
 
@@ -79,7 +192,7 @@ export class GlyphVectorEngine {
     if (this.spec.characterSet.lowercase) {
       for (let i = 97; i <= 122; i++) {
         const char = String.fromCharCode(i);
-        glyphs.push(this.createLowercaseGlyph(char, i));
+        glyphs.push(this.createGlyphForChar(char, i, false));
       }
     }
 
@@ -91,7 +204,7 @@ export class GlyphVectorEngine {
       }
     }
 
-    // 6. Basic Punctuation
+    // 6. Punctuation & Symbols
     if (this.spec.characterSet.punctuation) {
       const puncts = [
         { char: '.', code: 46 },
@@ -109,6 +222,11 @@ export class GlyphVectorEngine {
         { char: ')', code: 41 },
         { char: "'", code: 39 },
         { char: '"', code: 34 },
+        { char: '@', code: 64 },
+        { char: '#', code: 35 },
+        { char: '$', code: 36 },
+        { char: '%', code: 37 },
+        { char: '&', code: 38 },
       ];
 
       puncts.forEach((p) => {
@@ -120,7 +238,151 @@ export class GlyphVectorEngine {
   }
 
   /**
-   * Required OpenType .notdef fallback glyph box.
+   * Applies geometric skew (slant) and coordinates transformations.
+   */
+  private applySlant(x: number, y: number): { x: number; y: number } {
+    if (this.slantAngle === 0) return { x, y };
+    return {
+      x: Math.round(x + y * this.slantAngle),
+      y: Math.round(y),
+    };
+  }
+
+  /**
+   * Helper to add a rectangle contour with optional slant.
+   */
+  private addRect(path: Path, x: number, y: number, w: number, h: number) {
+    const p1 = this.applySlant(x, y);
+    const p2 = this.applySlant(x + w, y);
+    const p3 = this.applySlant(x + w, y + h);
+    const p4 = this.applySlant(x, y + h);
+
+    path.moveTo(p1.x, p1.y);
+    path.lineTo(p2.x, p2.y);
+    path.lineTo(p3.x, p3.y);
+    path.lineTo(p4.x, p4.y);
+    path.close();
+  }
+
+  /**
+   * Helper to draw elegant serifs for Serif genre.
+   */
+  private addSerif(path: Path, x: number, y: number, stemW: number, position: 'top' | 'bottom' | 'both') {
+    if (this.genre !== 'serif') return;
+
+    const overhang = Math.max(16, Math.round(stemW * 0.45));
+    const serifHeight = Math.max(10, Math.round(stemW * 0.18));
+
+    if (position === 'top' || position === 'both') {
+      const topY = y;
+      const p1 = this.applySlant(x - overhang, topY);
+      const p2 = this.applySlant(x + stemW + overhang, topY);
+      const p3 = this.applySlant(x + stemW + overhang, topY - serifHeight);
+      const p4 = this.applySlant(x - overhang, topY - serifHeight);
+
+      path.moveTo(p1.x, p1.y);
+      path.lineTo(p2.x, p2.y);
+      path.lineTo(p3.x, p3.y);
+      path.lineTo(p4.x, p4.y);
+      path.close();
+    }
+
+    if (position === 'bottom' || position === 'both') {
+      const botY = y;
+      const p1 = this.applySlant(x - overhang, botY);
+      const p2 = this.applySlant(x + stemW + overhang, botY);
+      const p3 = this.applySlant(x + stemW + overhang, botY + serifHeight);
+      const p4 = this.applySlant(x - overhang, botY + serifHeight);
+
+      path.moveTo(p1.x, p1.y);
+      path.lineTo(p2.x, p2.y);
+      path.lineTo(p3.x, p3.y);
+      path.lineTo(p4.x, p4.y);
+      path.close();
+    }
+  }
+
+  /**
+   * Helper to draw high-quality round bowls (O, C, Q, o, c, e, etc.).
+   */
+  private addOval(
+    path: Path,
+    cx: number,
+    cy: number,
+    rx: number,
+    ry: number,
+    innerRx: number,
+    innerRy: number
+  ) {
+    // Outer loop (clockwise)
+    const kx = 0.5522847498 * rx;
+    const ky = 0.5522847498 * ry;
+
+    const top = this.applySlant(cx, cy + ry);
+    const right = this.applySlant(cx + rx, cy);
+    const bot = this.applySlant(cx, cy - ry);
+    const left = this.applySlant(cx - rx, cy);
+
+    path.moveTo(top.x, top.y);
+    path.bezierCurveTo(
+      this.applySlant(cx + kx, cy + ry).x, this.applySlant(cx + kx, cy + ry).y,
+      this.applySlant(cx + rx, cy + ky).x, this.applySlant(cx + rx, cy + ky).y,
+      right.x, right.y
+    );
+    path.bezierCurveTo(
+      this.applySlant(cx + rx, cy - ky).x, this.applySlant(cx + rx, cy - ky).y,
+      this.applySlant(cx + kx, cy - ry).x, this.applySlant(cx + kx, cy - ry).y,
+      bot.x, bot.y
+    );
+    path.bezierCurveTo(
+      this.applySlant(cx - kx, cy - ry).x, this.applySlant(cx - kx, cy - ry).y,
+      this.applySlant(cx - rx, cy - ky).x, this.applySlant(cx - rx, cy - ky).y,
+      left.x, left.y
+    );
+    path.bezierCurveTo(
+      this.applySlant(cx - rx, cy + ky).x, this.applySlant(cx - rx, cy + ky).y,
+      this.applySlant(cx - kx, cy + ry).x, this.applySlant(cx - kx, cy + ry).y,
+      top.x, top.y
+    );
+    path.close();
+
+    // Inner counter (counter-clockwise for OpenType hole winding)
+    if (innerRx > 5 && innerRy > 5) {
+      const ikx = 0.5522847498 * innerRx;
+      const iky = 0.5522847498 * innerRy;
+
+      const iTop = this.applySlant(cx, cy + innerRy);
+      const iLeft = this.applySlant(cx - innerRx, cy);
+      const iBot = this.applySlant(cx, cy - innerRy);
+      const iRight = this.applySlant(cx + innerRx, cy);
+
+      path.moveTo(iTop.x, iTop.y);
+      path.bezierCurveTo(
+        this.applySlant(cx - ikx, cy + innerRy).x, this.applySlant(cx - ikx, cy + innerRy).y,
+        this.applySlant(cx - innerRx, cy + iky).x, this.applySlant(cx - innerRx, cy + iky).y,
+        iLeft.x, iLeft.y
+      );
+      path.bezierCurveTo(
+        this.applySlant(cx - innerRx, cy - iky).x, this.applySlant(cx - innerRx, cy - iky).y,
+        this.applySlant(cx - ikx, cy - innerRy).x, this.applySlant(cx - ikx, cy - innerRy).y,
+        iBot.x, iBot.y
+      );
+      path.bezierCurveTo(
+        this.applySlant(cx + ikx, cy - innerRy).x, this.applySlant(cx + ikx, cy - innerRy).y,
+        this.applySlant(cx + innerRx, cy - iky).x, this.applySlant(cx + innerRx, cy - iky).y,
+        iRight.x, iRight.y
+      );
+      path.bezierCurveTo(
+        this.applySlant(cx + innerRx, cy + iky).x, this.applySlant(cx + innerRx, cy + iky).y,
+        this.applySlant(cx + ikx, cy + innerRy).x, this.applySlant(cx + ikx, cy + innerRy).y,
+        iTop.x, iTop.y
+      );
+      path.close();
+    }
+  }
+
+  /**
+   * Fallback .notdef glyph box.
    */
   private createNotDefGlyph(): Glyph {
     const path = new Path();
@@ -148,1131 +410,694 @@ export class GlyphVectorEngine {
   }
 
   /**
-   * Helper to add sharp triangular dagger serifs for horror/gothic styles.
+   * Unified character builder for both uppercase and lowercase letters.
    */
-  private addDaggerSerif(path: Path, x: number, y: number, stemW: number, position: 'top' | 'bottom') {
-    if (!this.isHorror && !this.isSerif) return;
-    const len = this.isHorror ? 35 : 25;
-    const h = this.isHorror ? 30 : 15;
-
-    if (position === 'top') {
-      path.moveTo(x - len, y);
-      path.lineTo(x + stemW + len, y);
-      path.lineTo(x + stemW / 2, y + h);
-      path.close();
-    } else {
-      path.moveTo(x - len, y);
-      path.lineTo(x + stemW + len, y);
-      path.lineTo(x + stemW / 2, y - h);
-      path.close();
-    }
-  }
-
-  /**
-   * Synthesizes vector contour paths for Uppercase letters A-Z.
-   */
-  private createUppercaseGlyph(char: string, unicode: number): Glyph {
+  private createGlyphForChar(char: string, unicode: number, isUpper: boolean): Glyph {
     const path = new Path();
-    const s = this.stem;
-    const h = this.capH;
-    let adv = this.isHorror ? 540 : 620;
-
-    switch (char) {
-      case 'A': {
-        adv = this.isHorror ? 560 : 640;
-        const mid = adv / 2;
-        const apexY = this.isHorror ? h + 60 : h;
-
-        // Left diagonal
-        path.moveTo(40, 0);
-        path.lineTo(mid, apexY);
-        path.lineTo(mid + s * 0.8, apexY);
-        path.lineTo(adv - 40, 0);
-        path.lineTo(adv - 40 - s, 0);
-        path.lineTo(mid, h - s * 1.2);
-        path.lineTo(40 + s, 0);
-        path.close();
-
-        // Crossbar
-        const barY = h * 0.35;
-        path.moveTo(110, barY);
-        path.lineTo(adv - 110, barY);
-        path.lineTo(adv - 110, barY + s * 0.7);
-        path.lineTo(110, barY + s * 0.7);
-        path.close();
-
-        this.addDaggerSerif(path, 40, 0, s, 'bottom');
-        this.addDaggerSerif(path, adv - 40 - s, 0, s, 'bottom');
-        break;
-      }
-      case 'B': {
-        adv = this.isHorror ? 520 : 620;
-        path.moveTo(60, 0);
-        path.lineTo(60 + s, 0);
-        path.lineTo(60 + s, h);
-        path.lineTo(60, h);
-        path.close();
-
-        // Upper loop
-        path.moveTo(60 + s, h);
-        path.lineTo(adv - 110, h);
-        path.curveTo(adv, h, adv, h * 0.55, adv - 110, h * 0.52);
-        path.lineTo(60 + s, h * 0.52);
-        path.close();
-        path.moveTo(60 + s + s * 0.6, h - s * 0.7);
-        path.lineTo(adv - 130, h - s * 0.7);
-        path.lineTo(adv - 130, h * 0.52 + s * 0.5);
-        path.lineTo(60 + s + s * 0.6, h * 0.52 + s * 0.5);
-        path.close();
-
-        // Lower loop
-        path.moveTo(60 + s, h * 0.52);
-        path.lineTo(adv - 90, h * 0.52);
-        path.curveTo(adv + 10, h * 0.48, adv + 10, 0, adv - 90, 0);
-        path.lineTo(60 + s, 0);
-        path.close();
-        path.moveTo(60 + s + s * 0.6, h * 0.52 - s * 0.5);
-        path.lineTo(adv - 110, h * 0.52 - s * 0.5);
-        path.lineTo(adv - 110, s * 0.7);
-        path.lineTo(60 + s + s * 0.6, s * 0.7);
-        path.close();
-
-        this.addDaggerSerif(path, 60, h, s, 'top');
-        this.addDaggerSerif(path, 60, 0, s, 'bottom');
-        break;
-      }
-      case 'C': {
-        adv = this.isHorror ? 540 : 640;
-        path.moveTo(adv - 70, h * 0.82);
-        path.curveTo(70, h + 30, 70, -30, adv - 70, h * 0.18);
-        path.lineTo(adv - 70, h * 0.18 + s);
-        path.curveTo(70 + s * 1.2, 0 + s, 70 + s * 1.2, h - s, adv - 70, h * 0.82 - s);
-        path.close();
-        break;
-      }
-      case 'D': {
-        adv = this.isHorror ? 540 : 640;
-        path.moveTo(60, 0);
-        path.lineTo(60 + s, 0);
-        path.lineTo(60 + s, h);
-        path.lineTo(60, h);
-        path.close();
-
-        path.moveTo(60 + s, h);
-        path.lineTo(adv - 120, h);
-        path.curveTo(adv + 20, h, adv + 20, 0, adv - 120, 0);
-        path.lineTo(60 + s, 0);
-        path.close();
-
-        path.moveTo(60 + s * 1.6, h - s * 0.8);
-        path.lineTo(adv - 140, h - s * 0.8);
-        path.curveTo(adv - 20, h - s * 0.8, adv - 20, s * 0.8, adv - 140, s * 0.8);
-        path.lineTo(60 + s * 1.6, s * 0.8);
-        path.close();
-
-        this.addDaggerSerif(path, 60, h, s, 'top');
-        this.addDaggerSerif(path, 60, 0, s, 'bottom');
-        break;
-      }
-      case 'E': {
-        adv = this.isHorror ? 500 : 580;
-        path.moveTo(60, 0);
-        path.lineTo(60 + s, 0);
-        path.lineTo(60 + s, h);
-        path.lineTo(60, h);
-        path.close();
-
-        // Top bar
-        path.moveTo(60, h - s);
-        path.lineTo(adv - 60, h - s);
-        path.lineTo(adv - 60, h);
-        path.lineTo(60, h);
-        path.close();
-
-        // Mid bar
-        path.moveTo(60, h * 0.5 - s / 2);
-        path.lineTo(adv - 100, h * 0.5 - s / 2);
-        path.lineTo(adv - 100, h * 0.5 + s / 2);
-        path.lineTo(60, h * 0.5 + s / 2);
-        path.close();
-
-        // Bottom bar
-        path.moveTo(60, 0);
-        path.lineTo(adv - 60, 0);
-        path.lineTo(adv - 60, s);
-        path.lineTo(60, s);
-        path.close();
-
-        this.addDaggerSerif(path, 60, h, s, 'top');
-        this.addDaggerSerif(path, 60, 0, s, 'bottom');
-        break;
-      }
-      case 'F': {
-        adv = this.isHorror ? 480 : 560;
-        path.moveTo(60, 0);
-        path.lineTo(60 + s, 0);
-        path.lineTo(60 + s, h);
-        path.lineTo(60, h);
-        path.close();
-
-        // Top bar
-        path.moveTo(60, h - s);
-        path.lineTo(adv - 60, h - s);
-        path.lineTo(adv - 60, h);
-        path.lineTo(60, h);
-        path.close();
-
-        // Mid bar
-        path.moveTo(60, h * 0.5 - s / 2);
-        path.lineTo(adv - 100, h * 0.5 - s / 2);
-        path.lineTo(adv - 100, h * 0.5 + s / 2);
-        path.lineTo(60, h * 0.5 + s / 2);
-        path.close();
-
-        this.addDaggerSerif(path, 60, h, s, 'top');
-        this.addDaggerSerif(path, 60, 0, s, 'bottom');
-        break;
-      }
-      case 'G': {
-        adv = this.isHorror ? 560 : 660;
-        path.moveTo(adv - 70, h * 0.82);
-        path.curveTo(70, h + 30, 70, -30, adv - 70, h * 0.18);
-        path.lineTo(adv - 70, h * 0.45);
-        path.lineTo(adv - 180, h * 0.45);
-        path.lineTo(adv - 180, h * 0.45 - s);
-        path.lineTo(adv - 70 + s, h * 0.45 - s);
-        path.lineTo(adv - 70 + s, h * 0.18);
-        path.curveTo(70 + s * 1.2, 0 + s, 70 + s * 1.2, h - s, adv - 70, h * 0.82 - s);
-        path.close();
-        break;
-      }
-      case 'H': {
-        adv = this.isHorror ? 540 : 640;
-        // Left stem
-        path.moveTo(60, 0);
-        path.lineTo(60 + s, 0);
-        path.lineTo(60 + s, h);
-        path.lineTo(60, h);
-        path.close();
-
-        // Right stem
-        path.moveTo(adv - 60 - s, 0);
-        path.lineTo(adv - 60, 0);
-        path.lineTo(adv - 60, h);
-        path.lineTo(adv - 60 - s, h);
-        path.close();
-
-        // Mid bar
-        path.moveTo(60, h * 0.48);
-        path.lineTo(adv - 60, h * 0.48);
-        path.lineTo(adv - 60, h * 0.48 + s);
-        path.lineTo(60, h * 0.48 + s);
-        path.close();
-
-        this.addDaggerSerif(path, 60, h, s, 'top');
-        this.addDaggerSerif(path, 60, 0, s, 'bottom');
-        this.addDaggerSerif(path, adv - 60 - s, h, s, 'top');
-        this.addDaggerSerif(path, adv - 60 - s, 0, s, 'bottom');
-        break;
-      }
-      case 'I': {
-        adv = this.isHorror ? 320 : 380;
-        const mid = adv / 2;
-        path.moveTo(mid - s / 2, 0);
-        path.lineTo(mid + s / 2, 0);
-        path.lineTo(mid + s / 2, h);
-        path.lineTo(mid - s / 2, h);
-        path.close();
-
-        // Top/bottom serifs
-        path.moveTo(mid - s * 1.5, h - s * 0.8);
-        path.lineTo(mid + s * 1.5, h - s * 0.8);
-        path.lineTo(mid + s * 1.5, h);
-        path.lineTo(mid - s * 1.5, h);
-        path.close();
-
-        path.moveTo(mid - s * 1.5, 0);
-        path.lineTo(mid + s * 1.5, 0);
-        path.lineTo(mid + s * 1.5, s * 0.8);
-        path.lineTo(mid - s * 1.5, s * 0.8);
-        path.close();
-        break;
-      }
-      case 'J': {
-        adv = this.isHorror ? 420 : 500;
-        path.moveTo(adv - 60 - s, h);
-        path.lineTo(adv - 60, h);
-        path.lineTo(adv - 60, h * 0.25);
-        path.curveTo(adv - 60, -40, 60, -40, 60, h * 0.25);
-        path.lineTo(60 + s, h * 0.25);
-        path.curveTo(60 + s, 0 + s, adv - 60 - s, 0 + s, adv - 60 - s, h * 0.25);
-        path.close();
-
-        this.addDaggerSerif(path, adv - 60 - s, h, s, 'top');
-        break;
-      }
-      case 'K': {
-        adv = this.isHorror ? 540 : 620;
-        path.moveTo(60, 0);
-        path.lineTo(60 + s, 0);
-        path.lineTo(60 + s, h);
-        path.lineTo(60, h);
-        path.close();
-
-        // Upper arm
-        path.moveTo(60 + s, h * 0.4);
-        path.lineTo(adv - 60 - s, h);
-        path.lineTo(adv - 60, h);
-        path.lineTo(60 + s, h * 0.35);
-        path.close();
-
-        // Lower leg
-        path.moveTo(60 + s * 1.5, h * 0.42);
-        path.lineTo(adv - 50, 0);
-        path.lineTo(adv - 50 - s, 0);
-        path.lineTo(60 + s, h * 0.38);
-        path.close();
-
-        this.addDaggerSerif(path, 60, h, s, 'top');
-        this.addDaggerSerif(path, 60, 0, s, 'bottom');
-        this.addDaggerSerif(path, adv - 60 - s, h, s, 'top');
-        this.addDaggerSerif(path, adv - 50 - s, 0, s, 'bottom');
-        break;
-      }
-      case 'L': {
-        adv = this.isHorror ? 460 : 540;
-        path.moveTo(60, 0);
-        path.lineTo(60 + s, 0);
-        path.lineTo(60 + s, h);
-        path.lineTo(60, h);
-        path.close();
-
-        path.moveTo(60, 0);
-        path.lineTo(adv - 60, 0);
-        path.lineTo(adv - 60, s);
-        path.lineTo(60, s);
-        path.close();
-
-        this.addDaggerSerif(path, 60, h, s, 'top');
-        break;
-      }
-      case 'M': {
-        adv = this.isHorror ? 660 : 760;
-        const mid = adv / 2;
-        const peakY = this.isHorror ? h + 50 : h;
-
-        path.moveTo(50, 0);
-        path.lineTo(50 + s, 0);
-        path.lineTo(50 + s, peakY);
-        path.lineTo(50, peakY);
-        path.close();
-
-        path.moveTo(50, peakY);
-        path.lineTo(mid, 0);
-        path.lineTo(mid + s * 0.8, 0);
-        path.lineTo(50 + s, peakY);
-        path.close();
-
-        path.moveTo(adv - 50 - s, peakY);
-        path.lineTo(mid, 0);
-        path.lineTo(mid + s * 0.8, 0);
-        path.lineTo(adv - 50, peakY);
-        path.close();
-
-        path.moveTo(adv - 50 - s, 0);
-        path.lineTo(adv - 50, 0);
-        path.lineTo(adv - 50, peakY);
-        path.lineTo(adv - 50 - s, peakY);
-        path.close();
-
-        this.addDaggerSerif(path, 50, 0, s, 'bottom');
-        this.addDaggerSerif(path, adv - 50 - s, 0, s, 'bottom');
-        break;
-      }
-      case 'N': {
-        adv = this.isHorror ? 580 : 660;
-        const peakY = this.isHorror ? h + 50 : h;
-
-        path.moveTo(60, 0);
-        path.lineTo(60 + s, 0);
-        path.lineTo(60 + s, peakY);
-        path.lineTo(60, peakY);
-        path.close();
-
-        path.moveTo(60, peakY);
-        path.lineTo(adv - 60, 0);
-        path.lineTo(adv - 60 + s * 0.8, 0);
-        path.lineTo(60 + s, peakY);
-        path.close();
-
-        path.moveTo(adv - 60 - s, 0);
-        path.lineTo(adv - 60, 0);
-        path.lineTo(adv - 60, peakY);
-        path.lineTo(adv - 60 - s, peakY);
-        path.close();
-
-        this.addDaggerSerif(path, 60, 0, s, 'bottom');
-        this.addDaggerSerif(path, adv - 60 - s, peakY, s, 'top');
-        break;
-      }
-      case 'O': {
-        adv = this.isHorror ? 560 : 660;
-        path.moveTo(adv / 2, 0);
-        path.curveTo(40, 0, 40, h, adv / 2, h);
-        path.curveTo(adv - 40, h, adv - 40, 0, adv / 2, 0);
-        path.close();
-
-        path.moveTo(adv / 2, s * 1.1);
-        path.curveTo(adv - 40 - s, s * 1.1, adv - 40 - s, h - s * 1.1, adv / 2, h - s * 1.1);
-        path.curveTo(40 + s, h - s * 1.1, 40 + s, s * 1.1, adv / 2, s * 1.1);
-        path.close();
-        break;
-      }
-      case 'P': {
-        adv = this.isHorror ? 520 : 600;
-        path.moveTo(60, 0);
-        path.lineTo(60 + s, 0);
-        path.lineTo(60 + s, h);
-        path.lineTo(60, h);
-        path.close();
-
-        path.moveTo(60 + s, h);
-        path.lineTo(adv - 90, h);
-        path.curveTo(adv + 10, h, adv + 10, h * 0.45, adv - 90, h * 0.45);
-        path.lineTo(60 + s, h * 0.45);
-        path.close();
-
-        path.moveTo(60 + s * 1.6, h - s * 0.7);
-        path.lineTo(adv - 110, h - s * 0.7);
-        path.curveTo(adv - 10, h - s * 0.7, adv - 10, h * 0.45 + s * 0.7, adv - 110, h * 0.45 + s * 0.7);
-        path.lineTo(60 + s * 1.6, h * 0.45 + s * 0.7);
-        path.close();
-
-        this.addDaggerSerif(path, 60, h, s, 'top');
-        this.addDaggerSerif(path, 60, 0, s, 'bottom');
-        break;
-      }
-      case 'Q': {
-        adv = this.isHorror ? 580 : 680;
-        path.moveTo(adv / 2, 0);
-        path.curveTo(40, 0, 40, h, adv / 2, h);
-        path.curveTo(adv - 40, h, adv - 40, 0, adv / 2, 0);
-        path.close();
-
-        path.moveTo(adv / 2, s * 1.1);
-        path.curveTo(adv - 40 - s, s * 1.1, adv - 40 - s, h - s * 1.1, adv / 2, h - s * 1.1);
-        path.curveTo(40 + s, h - s * 1.1, 40 + s, s * 1.1, adv / 2, s * 1.1);
-        path.close();
-
-        // Dagger tail
-        path.moveTo(adv * 0.55, h * 0.25);
-        path.lineTo(adv - 30, -60);
-        path.lineTo(adv - 30 + s, -60);
-        path.lineTo(adv * 0.55 + s, h * 0.25);
-        path.close();
-        break;
-      }
-      case 'R': {
-        adv = this.isHorror ? 540 : 620;
-        path.moveTo(60, 0);
-        path.lineTo(60 + s, 0);
-        path.lineTo(60 + s, h);
-        path.lineTo(60, h);
-        path.close();
-
-        // Upper loop
-        path.moveTo(60 + s, h);
-        path.lineTo(adv - 90, h);
-        path.curveTo(adv + 10, h, adv + 10, h * 0.48, adv - 90, h * 0.48);
-        path.lineTo(60 + s, h * 0.48);
-        path.close();
-
-        path.moveTo(60 + s * 1.6, h - s * 0.7);
-        path.lineTo(adv - 110, h - s * 0.7);
-        path.curveTo(adv - 10, h - s * 0.7, adv - 10, h * 0.48 + s * 0.7, adv - 110, h * 0.48 + s * 0.7);
-        path.lineTo(60 + s * 1.6, h * 0.48 + s * 0.7);
-        path.close();
-
-        // Diagonal leg
-        path.moveTo(60 + s * 1.2, h * 0.48);
-        path.lineTo(adv - 50, 0);
-        path.lineTo(adv - 50 - s, 0);
-        path.lineTo(60 + s, h * 0.42);
-        path.close();
-
-        this.addDaggerSerif(path, 60, h, s, 'top');
-        this.addDaggerSerif(path, 60, 0, s, 'bottom');
-        this.addDaggerSerif(path, adv - 50 - s, 0, s, 'bottom');
-        break;
-      }
-      case 'S': {
-        adv = this.isHorror ? 500 : 580;
-        path.moveTo(adv - 60, h * 0.8);
-        path.curveTo(adv - 60, h, 60, h, 60, h * 0.65);
-        path.curveTo(60, h * 0.35, adv - 60, h * 0.35, adv - 60, h * 0.2);
-        path.curveTo(adv - 60, 0, 60, 0, 60, h * 0.2);
-        path.lineTo(60, h * 0.2 + s);
-        path.curveTo(60 + s, s, adv - 60 - s, s, adv - 60 - s, h * 0.2);
-        path.curveTo(adv - 60 - s, h * 0.45, 60 + s, h * 0.45, 60 + s, h * 0.65);
-        path.curveTo(60 + s, h - s, adv - 60 - s, h - s, adv - 60 - s, h * 0.8);
-        path.close();
-        break;
-      }
-      case 'T': {
-        adv = this.isHorror ? 480 : 560;
-        const mid = adv / 2;
-
-        // Crossbar
-        path.moveTo(40, h - s);
-        path.lineTo(adv - 40, h - s);
-        path.lineTo(adv - 40, h);
-        path.lineTo(40, h);
-        path.close();
-
-        // Stem
-        path.moveTo(mid - s / 2, 0);
-        path.lineTo(mid + s / 2, 0);
-        path.lineTo(mid + s / 2, h);
-        path.lineTo(mid - s / 2, h);
-        path.close();
-
-        this.addDaggerSerif(path, mid - s / 2, 0, s, 'bottom');
-        break;
-      }
-      case 'U': {
-        adv = this.isHorror ? 540 : 620;
-        path.moveTo(60, h);
-        path.lineTo(60 + s, h);
-        path.lineTo(60 + s, h * 0.25);
-        path.curveTo(60 + s, 0, adv - 60 - s, 0, adv - 60 - s, h * 0.25);
-        path.lineTo(adv - 60 - s, h);
-        path.lineTo(adv - 60, h);
-        path.lineTo(adv - 60, h * 0.25);
-        path.curveTo(adv - 60, -30, 60, -30, 60, h * 0.25);
-        path.close();
-
-        this.addDaggerSerif(path, 60, h, s, 'top');
-        this.addDaggerSerif(path, adv - 60 - s, h, s, 'top');
-        break;
-      }
-      case 'V': {
-        adv = this.isHorror ? 540 : 620;
-        const mid = adv / 2;
-        const botY = this.isHorror ? -50 : 0;
-
-        path.moveTo(50, h);
-        path.lineTo(mid, botY);
-        path.lineTo(mid + s * 0.8, botY);
-        path.lineTo(adv - 50, h);
-        path.lineTo(adv - 50 - s, h);
-        path.lineTo(mid, botY + s * 1.5);
-        path.lineTo(50 + s, h);
-        path.close();
-
-        this.addDaggerSerif(path, 50, h, s, 'top');
-        this.addDaggerSerif(path, adv - 50 - s, h, s, 'top');
-        break;
-      }
-      case 'W': {
-        adv = this.isHorror ? 680 : 780;
-        const botY = this.isHorror ? -40 : 0;
-        const q1 = adv * 0.28;
-        const mid = adv * 0.5;
-        const q3 = adv * 0.72;
-
-        path.moveTo(40, h);
-        path.lineTo(q1, botY);
-        path.lineTo(mid, h);
-        path.lineTo(q3, botY);
-        path.lineTo(adv - 40, h);
-        path.lineTo(adv - 40 - s, h);
-        path.lineTo(q3, botY + s * 1.5);
-        path.lineTo(mid, h - s);
-        path.lineTo(q1, botY + s * 1.5);
-        path.lineTo(40 + s, h);
-        path.close();
-
-        this.addDaggerSerif(path, 40, h, s, 'top');
-        this.addDaggerSerif(path, adv - 40 - s, h, s, 'top');
-        break;
-      }
-      case 'X': {
-        adv = this.isHorror ? 520 : 600;
-        path.moveTo(50, h);
-        path.lineTo(adv - 50, 0);
-        path.lineTo(adv - 50 - s, 0);
-        path.lineTo(50 + s, h);
-        path.close();
-
-        path.moveTo(adv - 50, h);
-        path.lineTo(50, 0);
-        path.lineTo(50 + s, 0);
-        path.lineTo(adv - 50 - s, h);
-        path.close();
-
-        this.addDaggerSerif(path, 50, h, s, 'top');
-        this.addDaggerSerif(path, adv - 50 - s, h, s, 'top');
-        this.addDaggerSerif(path, 50, 0, s, 'bottom');
-        this.addDaggerSerif(path, adv - 50 - s, 0, s, 'bottom');
-        break;
-      }
-      case 'Y': {
-        adv = this.isHorror ? 520 : 600;
-        const mid = adv / 2;
-
-        path.moveTo(50, h);
-        path.lineTo(mid, h * 0.45);
-        path.lineTo(adv - 50, h);
-        path.lineTo(adv - 50 - s, h);
-        path.lineTo(mid, h * 0.5);
-        path.lineTo(50 + s, h);
-        path.close();
-
-        path.moveTo(mid - s / 2, 0);
-        path.lineTo(mid + s / 2, 0);
-        path.lineTo(mid + s / 2, h * 0.48);
-        path.lineTo(mid - s / 2, h * 0.48);
-        path.close();
-
-        this.addDaggerSerif(path, 50, h, s, 'top');
-        this.addDaggerSerif(path, adv - 50 - s, h, s, 'top');
-        this.addDaggerSerif(path, mid - s / 2, 0, s, 'bottom');
-        break;
-      }
-      case 'Z': {
-        adv = this.isHorror ? 500 : 580;
-        path.moveTo(50, h - s);
-        path.lineTo(adv - 50, h - s);
-        path.lineTo(adv - 50, h);
-        path.lineTo(50, h);
-        path.close();
-
-        path.moveTo(adv - 50 - s, h - s);
-        path.lineTo(50, s);
-        path.lineTo(50 + s, s);
-        path.lineTo(adv - 50, h - s);
-        path.close();
-
-        path.moveTo(50, 0);
-        path.lineTo(adv - 50, 0);
-        path.lineTo(adv - 50, s);
-        path.lineTo(50, s);
-        path.close();
-        break;
-      }
-      default: {
-        adv = 580;
-        path.moveTo(60, 0);
-        path.lineTo(60 + s, 0);
-        path.lineTo(60 + s, h);
-        path.lineTo(60, h);
-        path.close();
-        break;
-      }
-    }
-
-    return new Glyph({
-      name: char,
-      unicode,
-      advanceWidth: adv,
-      path,
-    });
-  }
-
-  /**
-   * Synthesizes vector contour paths for Lowercase letters a-z.
-   */
-  private createLowercaseGlyph(char: string, unicode: number): Glyph {
-    const path = new Path();
-    const s = Math.max(30, this.stem * 0.85);
-    const h = this.xH;
+    const s = Math.round(this.stem * (isUpper ? 1.0 : 0.88));
+    const hStem = Math.max(18, Math.round(s * this.contrastRatio));
+    const h = isUpper ? this.capH : this.xH;
     const ascY = this.asc;
     const descY = this.desc;
-    let adv = this.isHorror ? 480 : 540;
 
-    switch (char) {
-      case 'a': {
-        adv = 500;
-        path.moveTo(adv - 50 - s, 0);
-        path.lineTo(adv - 50, 0);
-        path.lineTo(adv - 50, h);
-        path.lineTo(adv - 50 - s, h);
-        path.close();
+    // Advance width base
+    let baseAdv = isUpper ? 620 : 520;
+    if (this.genre === 'monospace') {
+      baseAdv = 600;
+    } else {
+      baseAdv = Math.round(baseAdv * this.widthScale);
+    }
+    let adv = baseAdv;
 
-        path.moveTo(adv - 50 - s, h);
-        path.curveTo(50, h, 50, 0, adv - 50 - s, 0);
-        path.lineTo(adv - 50 - s, s);
-        path.curveTo(50 + s, s, 50 + s, h - s, adv - 50 - s, h - s);
-        path.close();
+    const lower = char.toLowerCase();
 
-        this.addDaggerSerif(path, adv - 50 - s, 0, s, 'bottom');
-        break;
+    // Uppercase & Lowercase Synthesis
+    if (isUpper) {
+      switch (char) {
+        case 'A': {
+          adv = Math.round(660 * this.widthScale);
+          const mid = adv / 2;
+          const apex = h + 10;
+
+          // Left diagonal
+          path.moveTo(this.applySlant(40, 0).x, this.applySlant(40, 0).y);
+          path.lineTo(this.applySlant(mid, apex).x, this.applySlant(mid, apex).y);
+          path.lineTo(this.applySlant(mid + s * 0.6, apex).x, this.applySlant(mid + s * 0.6, apex).y);
+          path.lineTo(this.applySlant(adv - 40, 0).x, this.applySlant(adv - 40, 0).y);
+          path.lineTo(this.applySlant(adv - 40 - s, 0).x, this.applySlant(adv - 40 - s, 0).y);
+          path.lineTo(this.applySlant(mid, h - s * 1.1).x, this.applySlant(mid, h - s * 1.1).y);
+          path.lineTo(this.applySlant(40 + s, 0).x, this.applySlant(40 + s, 0).y);
+          path.close();
+
+          // Crossbar
+          this.addRect(path, 110, h * 0.35, adv - 220, hStem);
+          this.addSerif(path, 40, 0, s, 'bottom');
+          this.addSerif(path, adv - 40 - s, 0, s, 'bottom');
+          break;
+        }
+
+        case 'B': {
+          adv = Math.round(620 * this.widthScale);
+          this.addRect(path, 60, 0, s, h);
+          const r1 = Math.round((h * 0.48) / 2);
+          const r2 = Math.round((h * 0.52) / 2);
+          this.addOval(path, 60 + s + (adv - 140 - s) / 2, h * 0.74, (adv - 140 - s) / 2, r1, (adv - 140 - s) / 2 - s, r1 - hStem);
+          this.addOval(path, 60 + s + (adv - 110 - s) / 2, h * 0.26, (adv - 110 - s) / 2, r2, (adv - 110 - s) / 2 - s, r2 - hStem);
+          this.addSerif(path, 60, h, s, 'top');
+          this.addSerif(path, 60, 0, s, 'bottom');
+          break;
+        }
+
+        case 'C': {
+          adv = Math.round(640 * this.widthScale);
+          const rx = (adv - 100) / 2;
+          const ry = h / 2;
+          this.addOval(path, 50 + rx, ry, rx, ry, rx - s, ry - hStem);
+          // Opening bite on right side
+          const biteW = Math.round(adv * 0.42);
+          const biteH = Math.round(h * 0.48);
+          // Draw over opening
+          break;
+        }
+
+        case 'D': {
+          adv = Math.round(640 * this.widthScale);
+          this.addRect(path, 60, 0, s, h);
+          const rx = adv - 60 - s - 50;
+          const ry = h / 2;
+          this.addOval(path, 60 + s + rx / 2, ry, rx / 2, ry, rx / 2 - s, ry - hStem);
+          this.addSerif(path, 60, h, s, 'top');
+          this.addSerif(path, 60, 0, s, 'bottom');
+          break;
+        }
+
+        case 'E': {
+          adv = Math.round(560 * this.widthScale);
+          this.addRect(path, 60, 0, s, h);
+          this.addRect(path, 60 + s, h - hStem, adv - 100 - s, hStem); // Top arm
+          this.addRect(path, 60 + s, h * 0.5 - hStem / 2, adv - 140 - s, hStem); // Middle arm
+          this.addRect(path, 60 + s, 0, adv - 90 - s, hStem); // Bottom arm
+          this.addSerif(path, 60, h, s, 'top');
+          this.addSerif(path, 60, 0, s, 'bottom');
+          break;
+        }
+
+        case 'F': {
+          adv = Math.round(540 * this.widthScale);
+          this.addRect(path, 60, 0, s, h);
+          this.addRect(path, 60 + s, h - hStem, adv - 100 - s, hStem);
+          this.addRect(path, 60 + s, h * 0.5 - hStem / 2, adv - 140 - s, hStem);
+          this.addSerif(path, 60, h, s, 'top');
+          this.addSerif(path, 60, 0, s, 'bottom');
+          break;
+        }
+
+        case 'G': {
+          adv = Math.round(660 * this.widthScale);
+          const rx = (adv - 100) / 2;
+          const ry = h / 2;
+          this.addOval(path, 50 + rx, ry, rx, ry, rx - s, ry - hStem);
+          this.addRect(path, adv - 60 - s, 0, s, h * 0.45); // Right bottom stem
+          this.addRect(path, adv / 2, h * 0.45 - hStem, adv / 2 - 60, hStem); // Inward crossbar
+          break;
+        }
+
+        case 'H': {
+          adv = Math.round(660 * this.widthScale);
+          this.addRect(path, 60, 0, s, h);
+          this.addRect(path, adv - 60 - s, 0, s, h);
+          this.addRect(path, 60 + s, h * 0.5 - hStem / 2, adv - 120 - 2 * s, hStem);
+          this.addSerif(path, 60, h, s, 'top');
+          this.addSerif(path, 60, 0, s, 'bottom');
+          this.addSerif(path, adv - 60 - s, h, s, 'top');
+          this.addSerif(path, adv - 60 - s, 0, s, 'bottom');
+          break;
+        }
+
+        case 'I': {
+          adv = Math.round(360 * this.widthScale);
+          const mid = adv / 2;
+          this.addRect(path, mid - s / 2, 0, s, h);
+          this.addSerif(path, mid - s / 2, h, s, 'top');
+          this.addSerif(path, mid - s / 2, 0, s, 'bottom');
+          break;
+        }
+
+        case 'J': {
+          adv = Math.round(440 * this.widthScale);
+          this.addRect(path, adv - 60 - s, h * 0.25, s, h * 0.75);
+          const r = (adv - 100) / 2;
+          this.addOval(path, 50 + r, r, r, r, r - s, r - hStem);
+          this.addSerif(path, adv - 60 - s, h, s, 'top');
+          break;
+        }
+
+        case 'K': {
+          adv = Math.round(620 * this.widthScale);
+          this.addRect(path, 60, 0, s, h);
+          // Diagonal top arm
+          path.moveTo(this.applySlant(60 + s, h * 0.45).x, this.applySlant(60 + s, h * 0.45).y);
+          path.lineTo(this.applySlant(adv - 60 - s, h).x, this.applySlant(adv - 60 - s, h).y);
+          path.lineTo(this.applySlant(adv - 60, h).x, this.applySlant(adv - 60, h).y);
+          path.lineTo(this.applySlant(60 + s, h * 0.35).x, this.applySlant(60 + s, h * 0.35).y);
+          path.close();
+          // Diagonal bottom arm
+          path.moveTo(this.applySlant(60 + s * 1.4, h * 0.44).x, this.applySlant(60 + s * 1.4, h * 0.44).y);
+          path.lineTo(this.applySlant(adv - 50, 0).x, this.applySlant(adv - 50, 0).y);
+          path.lineTo(this.applySlant(adv - 50 - s, 0).x, this.applySlant(adv - 50 - s, 0).y);
+          path.lineTo(this.applySlant(60 + s, h * 0.38).x, this.applySlant(60 + s, h * 0.38).y);
+          path.close();
+          this.addSerif(path, 60, h, s, 'top');
+          this.addSerif(path, 60, 0, s, 'bottom');
+          break;
+        }
+
+        case 'L': {
+          adv = Math.round(520 * this.widthScale);
+          this.addRect(path, 60, 0, s, h);
+          this.addRect(path, 60 + s, 0, adv - 90 - s, hStem);
+          this.addSerif(path, 60, h, s, 'top');
+          this.addSerif(path, 60, 0, s, 'bottom');
+          break;
+        }
+
+        case 'M': {
+          adv = Math.round(760 * this.widthScale);
+          this.addRect(path, 50, 0, s, h);
+          this.addRect(path, adv - 50 - s, 0, s, h);
+          const mid = adv / 2;
+          // Left V-diagonal
+          path.moveTo(this.applySlant(50 + s, h).x, this.applySlant(50 + s, h).y);
+          path.lineTo(this.applySlant(mid, 0).x, this.applySlant(mid, 0).y);
+          path.lineTo(this.applySlant(mid + s * 0.7, 0).x, this.applySlant(mid + s * 0.7, 0).y);
+          path.lineTo(this.applySlant(50 + s, h - s * 1.2).x, this.applySlant(50 + s, h - s * 1.2).y);
+          path.close();
+          // Right V-diagonal
+          path.moveTo(this.applySlant(adv - 50 - s, h).x, this.applySlant(adv - 50 - s, h).y);
+          path.lineTo(this.applySlant(mid, 0).x, this.applySlant(mid, 0).y);
+          path.lineTo(this.applySlant(mid - s * 0.7, 0).x, this.applySlant(mid - s * 0.7, 0).y);
+          path.lineTo(this.applySlant(adv - 50 - s, h - s * 1.2).x, this.applySlant(adv - 50 - s, h - s * 1.2).y);
+          path.close();
+          this.addSerif(path, 50, h, s, 'top');
+          this.addSerif(path, 50, 0, s, 'bottom');
+          this.addSerif(path, adv - 50 - s, h, s, 'top');
+          this.addSerif(path, adv - 50 - s, 0, s, 'bottom');
+          break;
+        }
+
+        case 'N': {
+          adv = Math.round(660 * this.widthScale);
+          this.addRect(path, 60, 0, s, h);
+          this.addRect(path, adv - 60 - s, 0, s, h);
+          // Diagonal
+          path.moveTo(this.applySlant(60, h).x, this.applySlant(60, h).y);
+          path.lineTo(this.applySlant(adv - 60, 0).x, this.applySlant(adv - 60, 0).y);
+          path.lineTo(this.applySlant(adv - 60, s * 1.2).x, this.applySlant(adv - 60, s * 1.2).y);
+          path.lineTo(this.applySlant(60 + s, h).x, this.applySlant(60 + s, h).y);
+          path.close();
+          this.addSerif(path, 60, h, s, 'top');
+          this.addSerif(path, 60, 0, s, 'bottom');
+          this.addSerif(path, adv - 60 - s, 0, s, 'bottom');
+          break;
+        }
+
+        case 'O': {
+          adv = Math.round(680 * this.widthScale);
+          const rx = (adv - 100) / 2;
+          const ry = h / 2;
+          this.addOval(path, 50 + rx, ry, rx, ry, rx - s, ry - hStem);
+          break;
+        }
+
+        case 'P': {
+          adv = Math.round(580 * this.widthScale);
+          this.addRect(path, 60, 0, s, h);
+          const rx = (adv - 120 - s) / 2;
+          const ry = (h * 0.55) / 2;
+          this.addOval(path, 60 + s + rx, h * 0.725, rx, ry, rx - s, ry - hStem);
+          this.addSerif(path, 60, h, s, 'top');
+          this.addSerif(path, 60, 0, s, 'bottom');
+          break;
+        }
+
+        case 'Q': {
+          adv = Math.round(680 * this.widthScale);
+          const rx = (adv - 100) / 2;
+          const ry = h / 2;
+          this.addOval(path, 50 + rx, ry, rx, ry, rx - s, ry - hStem);
+          // Tail
+          path.moveTo(this.applySlant(adv * 0.52, h * 0.18).x, this.applySlant(adv * 0.52, h * 0.18).y);
+          path.lineTo(this.applySlant(adv - 30, -50).x, this.applySlant(adv - 30, -50).y);
+          path.lineTo(this.applySlant(adv - 30 - s, -50).x, this.applySlant(adv - 30 - s, -50).y);
+          path.lineTo(this.applySlant(adv * 0.52 - s, h * 0.18).x, this.applySlant(adv * 0.52 - s, h * 0.18).y);
+          path.close();
+          break;
+        }
+
+        case 'R': {
+          adv = Math.round(620 * this.widthScale);
+          this.addRect(path, 60, 0, s, h);
+          const rx = (adv - 130 - s) / 2;
+          const ry = (h * 0.52) / 2;
+          this.addOval(path, 60 + s + rx, h * 0.74, rx, ry, rx - s, ry - hStem);
+          // Diagonal leg
+          path.moveTo(this.applySlant(60 + s * 1.2, h * 0.48).x, this.applySlant(60 + s * 1.2, h * 0.48).y);
+          path.lineTo(this.applySlant(adv - 50, 0).x, this.applySlant(adv - 50, 0).y);
+          path.lineTo(this.applySlant(adv - 50 - s, 0).x, this.applySlant(adv - 50 - s, 0).y);
+          path.lineTo(this.applySlant(60 + s, h * 0.48).x, this.applySlant(60 + s, h * 0.48).y);
+          path.close();
+          this.addSerif(path, 60, h, s, 'top');
+          this.addSerif(path, 60, 0, s, 'bottom');
+          break;
+        }
+
+        case 'S': {
+          adv = Math.round(580 * this.widthScale);
+          const rx = (adv - 100) / 2;
+          const ry1 = (h * 0.54) / 2;
+          const ry2 = (h * 0.54) / 2;
+          this.addOval(path, 50 + rx, h * 0.73, rx, ry1, rx - s, ry1 - hStem);
+          this.addOval(path, 50 + rx, h * 0.27, rx, ry2, rx - s, ry2 - hStem);
+          break;
+        }
+
+        case 'T': {
+          adv = Math.round(560 * this.widthScale);
+          const mid = adv / 2;
+          this.addRect(path, mid - s / 2, 0, s, h - hStem);
+          this.addRect(path, 40, h - hStem, adv - 80, hStem);
+          this.addSerif(path, mid - s / 2, 0, s, 'bottom');
+          break;
+        }
+
+        case 'U': {
+          adv = Math.round(640 * this.widthScale);
+          this.addRect(path, 60, h * 0.35, s, h * 0.65);
+          this.addRect(path, adv - 60 - s, h * 0.35, s, h * 0.65);
+          const rx = (adv - 120) / 2;
+          const ry = h * 0.35;
+          this.addOval(path, 60 + rx, ry, rx, ry, rx - s, ry - hStem);
+          this.addSerif(path, 60, h, s, 'top');
+          this.addSerif(path, adv - 60 - s, h, s, 'top');
+          break;
+        }
+
+        case 'V': {
+          adv = Math.round(620 * this.widthScale);
+          const mid = adv / 2;
+          path.moveTo(this.applySlant(50, h).x, this.applySlant(50, h).y);
+          path.lineTo(this.applySlant(mid, 0).x, this.applySlant(mid, 0).y);
+          path.lineTo(this.applySlant(mid + s * 0.8, 0).x, this.applySlant(mid + s * 0.8, 0).y);
+          path.lineTo(this.applySlant(adv - 50, h).x, this.applySlant(adv - 50, h).y);
+          path.lineTo(this.applySlant(adv - 50 - s, h).x, this.applySlant(adv - 50 - s, h).y);
+          path.lineTo(this.applySlant(mid, s * 1.5).x, this.applySlant(mid, s * 1.5).y);
+          path.lineTo(this.applySlant(50 + s, h).x, this.applySlant(50 + s, h).y);
+          path.close();
+          this.addSerif(path, 50, h, s, 'top');
+          this.addSerif(path, adv - 50 - s, h, s, 'top');
+          break;
+        }
+
+        case 'W': {
+          adv = Math.round(800 * this.widthScale);
+          const q1 = adv * 0.28;
+          const mid = adv * 0.5;
+          const q3 = adv * 0.72;
+          path.moveTo(this.applySlant(40, h).x, this.applySlant(40, h).y);
+          path.lineTo(this.applySlant(q1, 0).x, this.applySlant(q1, 0).y);
+          path.lineTo(this.applySlant(mid, h).x, this.applySlant(mid, h).y);
+          path.lineTo(this.applySlant(q3, 0).x, this.applySlant(q3, 0).y);
+          path.lineTo(this.applySlant(adv - 40, h).x, this.applySlant(adv - 40, h).y);
+          path.lineTo(this.applySlant(adv - 40 - s, h).x, this.applySlant(adv - 40 - s, h).y);
+          path.lineTo(this.applySlant(q3, s * 1.5).x, this.applySlant(q3, s * 1.5).y);
+          path.lineTo(this.applySlant(mid, h - s).x, this.applySlant(mid, h - s).y);
+          path.lineTo(this.applySlant(q1, s * 1.5).x, this.applySlant(q1, s * 1.5).y);
+          path.lineTo(this.applySlant(40 + s, h).x, this.applySlant(40 + s, h).y);
+          path.close();
+          this.addSerif(path, 40, h, s, 'top');
+          this.addSerif(path, adv - 40 - s, h, s, 'top');
+          break;
+        }
+
+        case 'X': {
+          adv = Math.round(600 * this.widthScale);
+          path.moveTo(this.applySlant(50, h).x, this.applySlant(50, h).y);
+          path.lineTo(this.applySlant(adv - 50, 0).x, this.applySlant(adv - 50, 0).y);
+          path.lineTo(this.applySlant(adv - 50 - s, 0).x, this.applySlant(adv - 50 - s, 0).y);
+          path.lineTo(this.applySlant(50 + s, h).x, this.applySlant(50 + s, h).y);
+          path.close();
+          path.moveTo(this.applySlant(adv - 50, h).x, this.applySlant(adv - 50, h).y);
+          path.lineTo(this.applySlant(50, 0).x, this.applySlant(50, 0).y);
+          path.lineTo(this.applySlant(50 + s, 0).x, this.applySlant(50 + s, 0).y);
+          path.lineTo(this.applySlant(adv - 50 - s, h).x, this.applySlant(adv - 50 - s, h).y);
+          path.close();
+          this.addSerif(path, 50, h, s, 'top');
+          this.addSerif(path, adv - 50 - s, h, s, 'top');
+          this.addSerif(path, 50, 0, s, 'bottom');
+          this.addSerif(path, adv - 50 - s, 0, s, 'bottom');
+          break;
+        }
+
+        case 'Y': {
+          adv = Math.round(600 * this.widthScale);
+          const mid = adv / 2;
+          path.moveTo(this.applySlant(50, h).x, this.applySlant(50, h).y);
+          path.lineTo(this.applySlant(mid, h * 0.45).x, this.applySlant(mid, h * 0.45).y);
+          path.lineTo(this.applySlant(adv - 50, h).x, this.applySlant(adv - 50, h).y);
+          path.lineTo(this.applySlant(adv - 50 - s, h).x, this.applySlant(adv - 50 - s, h).y);
+          path.lineTo(this.applySlant(mid, h * 0.5).x, this.applySlant(mid, h * 0.5).y);
+          path.lineTo(this.applySlant(50 + s, h).x, this.applySlant(50 + s, h).y);
+          path.close();
+          this.addRect(path, mid - s / 2, 0, s, h * 0.48);
+          this.addSerif(path, 50, h, s, 'top');
+          this.addSerif(path, adv - 50 - s, h, s, 'top');
+          this.addSerif(path, mid - s / 2, 0, s, 'bottom');
+          break;
+        }
+
+        case 'Z': {
+          adv = Math.round(580 * this.widthScale);
+          this.addRect(path, 50, h - hStem, adv - 100, hStem);
+          path.moveTo(this.applySlant(adv - 50 - s, h - hStem).x, this.applySlant(adv - 50 - s, h - hStem).y);
+          path.lineTo(this.applySlant(50, hStem).x, this.applySlant(50, hStem).y);
+          path.lineTo(this.applySlant(50 + s * 1.2, hStem).x, this.applySlant(50 + s * 1.2, hStem).y);
+          path.lineTo(this.applySlant(adv - 50, h - hStem).x, this.applySlant(adv - 50, h - hStem).y);
+          path.close();
+          this.addRect(path, 50, 0, adv - 100, hStem);
+          break;
+        }
       }
-      case 'b': {
-        adv = 500;
-        path.moveTo(50, 0);
-        path.lineTo(50 + s, 0);
-        path.lineTo(50 + s, ascY);
-        path.lineTo(50, ascY);
-        path.close();
+    } else {
+      // Lowercase a-z
+      switch (lower) {
+        case 'a': {
+          adv = Math.round(500 * this.widthScale);
+          const rx = (adv - 100 - s) / 2;
+          const ry = h / 2;
+          this.addOval(path, 50 + rx, ry, rx, ry, rx - s, ry - hStem);
+          this.addRect(path, adv - 50 - s, 0, s, h);
+          this.addSerif(path, adv - 50 - s, 0, s, 'bottom');
+          break;
+        }
 
-        path.moveTo(50 + s, h);
-        path.curveTo(adv, h, adv, 0, 50 + s, 0);
-        path.lineTo(50 + s, s);
-        path.curveTo(adv - s, s, adv - s, h - s, 50 + s, h - s);
-        path.close();
+        case 'b': {
+          adv = Math.round(520 * this.widthScale);
+          this.addRect(path, 50, 0, s, ascY);
+          const rx = (adv - 100 - s) / 2;
+          const ry = h / 2;
+          this.addOval(path, 50 + s + rx, ry, rx, ry, rx - s, ry - hStem);
+          this.addSerif(path, 50, ascY, s, 'top');
+          this.addSerif(path, 50, 0, s, 'bottom');
+          break;
+        }
 
-        this.addDaggerSerif(path, 50, ascY, s, 'top');
-        this.addDaggerSerif(path, 50, 0, s, 'bottom');
-        break;
-      }
-      case 'c': {
-        adv = 460;
-        path.moveTo(adv - 60, h * 0.8);
-        path.curveTo(60, h + 20, 60, -20, adv - 60, h * 0.2);
-        path.lineTo(adv - 60, h * 0.2 + s);
-        path.curveTo(60 + s, s, 60 + s, h - s, adv - 60, h * 0.8 - s);
-        path.close();
-        break;
-      }
-      case 'd': {
-        adv = 500;
-        path.moveTo(adv - 50 - s, 0);
-        path.lineTo(adv - 50, 0);
-        path.lineTo(adv - 50, ascY);
-        path.lineTo(adv - 50 - s, ascY);
-        path.close();
+        case 'c': {
+          adv = Math.round(460 * this.widthScale);
+          const rx = (adv - 90) / 2;
+          const ry = h / 2;
+          this.addOval(path, 45 + rx, ry, rx, ry, rx - s, ry - hStem);
+          break;
+        }
 
-        path.moveTo(adv - 50 - s, h);
-        path.curveTo(40, h, 40, 0, adv - 50 - s, 0);
-        path.lineTo(adv - 50 - s, s);
-        path.curveTo(40 + s, s, 40 + s, h - s, adv - 50 - s, h - s);
-        path.close();
+        case 'd': {
+          adv = Math.round(520 * this.widthScale);
+          const rx = (adv - 100 - s) / 2;
+          const ry = h / 2;
+          this.addOval(path, 50 + rx, ry, rx, ry, rx - s, ry - hStem);
+          this.addRect(path, adv - 50 - s, 0, s, ascY);
+          this.addSerif(path, adv - 50 - s, ascY, s, 'top');
+          this.addSerif(path, adv - 50 - s, 0, s, 'bottom');
+          break;
+        }
 
-        this.addDaggerSerif(path, adv - 50 - s, ascY, s, 'top');
-        this.addDaggerSerif(path, adv - 50 - s, 0, s, 'bottom');
-        break;
-      }
-      case 'e': {
-        adv = 480;
-        path.moveTo(adv - 50, h * 0.75);
-        path.curveTo(50, h + 20, 50, -20, adv - 50, h * 0.2);
-        path.lineTo(adv - 50, h * 0.2 + s);
-        path.curveTo(50 + s, s, 50 + s, h - s, adv - 50, h * 0.75 - s);
-        path.close();
+        case 'e': {
+          adv = Math.round(490 * this.widthScale);
+          const rx = (adv - 90) / 2;
+          const ry = h / 2;
+          // Smooth continuous outer and inner circular bowl
+          this.addOval(path, 45 + rx, ry, rx, ry, rx - s, ry - hStem);
+          // Proper solid middle crossbar connecting left and right walls
+          this.addRect(path, 45 + s * 0.8, h * 0.52 - hStem / 2, adv - 90 - 1.6 * s, hStem);
+          break;
+        }
 
-        path.moveTo(50, h * 0.5);
-        path.lineTo(adv - 50, h * 0.5);
-        path.lineTo(adv - 50, h * 0.5 + s * 0.8);
-        path.lineTo(50, h * 0.5 + s * 0.8);
-        path.close();
-        break;
-      }
-      case 'f': {
-        adv = 360;
-        path.moveTo(50, 0);
-        path.lineTo(50 + s, 0);
-        path.lineTo(50 + s, ascY - 60);
-        path.curveTo(50 + s, ascY, adv, ascY, adv, ascY - 40);
-        path.lineTo(adv - s, ascY - 40);
-        path.curveTo(adv - s, ascY - s, 50 + s, ascY - s, 50, ascY - 60);
-        path.close();
+        case 'f': {
+          adv = Math.round(360 * this.widthScale);
+          this.addRect(path, 60, 0, s, ascY - 40);
+          this.addRect(path, 60, ascY - 40, 80, hStem);
+          this.addRect(path, 35, h - hStem, 130, hStem); // Crossbar
+          this.addSerif(path, 60, 0, s, 'bottom');
+          break;
+        }
 
-        path.moveTo(30, h);
-        path.lineTo(adv - 20, h);
-        path.lineTo(adv - 20, h + s * 0.8);
-        path.lineTo(30, h + s * 0.8);
-        path.close();
+        case 'g': {
+          adv = Math.round(500 * this.widthScale);
+          const rx = (adv - 100 - s) / 2;
+          const ry = h / 2;
+          this.addOval(path, 50 + rx, ry, rx, ry, rx - s, ry - hStem);
+          this.addRect(path, adv - 50 - s, descY + 40, s, h - descY - 40);
+          this.addRect(path, 50, descY, adv - 100, hStem); // Descender hook
+          break;
+        }
 
-        this.addDaggerSerif(path, 50, 0, s, 'bottom');
-        break;
-      }
-      case 'g': {
-        adv = 500;
-        // Top bowl
-        path.moveTo(adv - 50 - s, h);
-        path.curveTo(40, h, 40, 0, adv - 50 - s, 0);
-        path.lineTo(adv - 50 - s, s);
-        path.curveTo(40 + s, s, 40 + s, h - s, adv - 50 - s, h - s);
-        path.close();
+        case 'h': {
+          adv = Math.round(520 * this.widthScale);
+          this.addRect(path, 50, 0, s, ascY);
+          this.addRect(path, adv - 50 - s, 0, s, h * 0.7);
+          const rx = (adv - 100 - s) / 2;
+          this.addOval(path, 50 + rx, h * 0.5, rx, h * 0.5, rx - s, h * 0.5 - hStem);
+          this.addSerif(path, 50, ascY, s, 'top');
+          this.addSerif(path, 50, 0, s, 'bottom');
+          this.addSerif(path, adv - 50 - s, 0, s, 'bottom');
+          break;
+        }
 
-        // Right descender stem
-        path.moveTo(adv - 50 - s, h);
-        path.lineTo(adv - 50, h);
-        path.lineTo(adv - 50, descY + 40);
-        path.curveTo(adv - 50, descY, 40, descY, 40, descY + 40);
-        path.lineTo(40 + s, descY + 40);
-        path.curveTo(40 + s, descY + s, adv - 50 - s, descY + s, adv - 50 - s, descY + 40);
-        path.close();
-        break;
-      }
-      case 'h': {
-        adv = 520;
-        // Left ascender stem
-        path.moveTo(50, 0);
-        path.lineTo(50 + s, 0);
-        path.lineTo(50 + s, ascY);
-        path.lineTo(50, ascY);
-        path.close();
+        case 'i': {
+          adv = Math.round(280 * this.widthScale);
+          const mid = adv / 2;
+          this.addRect(path, mid - s / 2, 0, s, h);
+          // Dot
+          this.addRect(path, mid - s / 2, h + 60, s, s);
+          this.addSerif(path, mid - s / 2, 0, s, 'bottom');
+          break;
+        }
 
-        // Arch shoulder
-        path.moveTo(50 + s, h);
-        path.curveTo(adv - 50, h, adv - 50, h * 0.5, adv - 50, 0);
-        path.lineTo(adv - 50 - s, 0);
-        path.curveTo(adv - 50 - s, h * 0.5, 50 + s, h - s, 50 + s, h - s);
-        path.close();
+        case 'j': {
+          adv = Math.round(300 * this.widthScale);
+          const mid = adv - 60 - s;
+          this.addRect(path, mid, descY + 40, s, h - descY - 40);
+          this.addRect(path, 40, descY, mid - 40 + s, hStem);
+          // Dot
+          this.addRect(path, mid, h + 60, s, s);
+          break;
+        }
 
-        this.addDaggerSerif(path, 50, ascY, s, 'top');
-        this.addDaggerSerif(path, 50, 0, s, 'bottom');
-        this.addDaggerSerif(path, adv - 50 - s, 0, s, 'bottom');
-        break;
-      }
-      case 'i': {
-        adv = 280;
-        const mid = adv / 2;
-        path.moveTo(mid - s / 2, 0);
-        path.lineTo(mid + s / 2, 0);
-        path.lineTo(mid + s / 2, h);
-        path.lineTo(mid - s / 2, h);
-        path.close();
+        case 'k': {
+          adv = Math.round(480 * this.widthScale);
+          this.addRect(path, 50, 0, s, ascY);
+          // Top arm
+          path.moveTo(this.applySlant(50 + s, h * 0.45).x, this.applySlant(50 + s, h * 0.45).y);
+          path.lineTo(this.applySlant(adv - 50 - s, h).x, this.applySlant(adv - 50 - s, h).y);
+          path.lineTo(this.applySlant(adv - 50, h).x, this.applySlant(adv - 50, h).y);
+          path.lineTo(this.applySlant(50 + s, h * 0.35).x, this.applySlant(50 + s, h * 0.35).y);
+          path.close();
+          // Bottom arm
+          path.moveTo(this.applySlant(50 + s * 1.3, h * 0.44).x, this.applySlant(50 + s * 1.3, h * 0.44).y);
+          path.lineTo(this.applySlant(adv - 40, 0).x, this.applySlant(adv - 40, 0).y);
+          path.lineTo(this.applySlant(adv - 40 - s, 0).x, this.applySlant(adv - 40 - s, 0).y);
+          path.lineTo(this.applySlant(50 + s, h * 0.38).x, this.applySlant(50 + s, h * 0.38).y);
+          path.close();
+          this.addSerif(path, 50, ascY, s, 'top');
+          this.addSerif(path, 50, 0, s, 'bottom');
+          break;
+        }
 
-        // Floating dot
-        const dotY = h + 70;
-        path.moveTo(mid - s / 2, dotY);
-        path.lineTo(mid + s / 2, dotY);
-        path.lineTo(mid + s / 2, dotY + s * 1.2);
-        path.lineTo(mid - s / 2, dotY + s * 1.2);
-        path.close();
+        case 'l': {
+          adv = Math.round(280 * this.widthScale);
+          const mid = adv / 2;
+          this.addRect(path, mid - s / 2, 0, s, ascY);
+          this.addSerif(path, mid - s / 2, ascY, s, 'top');
+          this.addSerif(path, mid - s / 2, 0, s, 'bottom');
+          break;
+        }
 
-        this.addDaggerSerif(path, mid - s / 2, 0, s, 'bottom');
-        break;
-      }
-      case 'j': {
-        adv = 320;
-        path.moveTo(adv - 50 - s, h);
-        path.lineTo(adv - 50, h);
-        path.lineTo(adv - 50, descY + 40);
-        path.curveTo(adv - 50, descY, 40, descY, 40, descY + 30);
-        path.lineTo(40 + s, descY + 30);
-        path.curveTo(40 + s, descY + s, adv - 50 - s, descY + s, adv - 50 - s, descY + 40);
-        path.close();
+        case 'm': {
+          adv = Math.round(740 * this.widthScale);
+          const w3 = (adv - 80) / 2;
+          this.addRect(path, 40, 0, s, h);
+          this.addRect(path, 40 + w3 - s / 2, 0, s, h * 0.85);
+          this.addRect(path, adv - 40 - s, 0, s, h * 0.85);
+          const r1 = w3 / 2;
+          this.addOval(path, 40 + r1, h * 0.5, r1, h * 0.5, r1 - s, h * 0.5 - hStem);
+          this.addOval(path, 40 + w3 + r1, h * 0.5, r1, h * 0.5, r1 - s, h * 0.5 - hStem);
+          this.addSerif(path, 40, 0, s, 'bottom');
+          this.addSerif(path, 40 + w3 - s / 2, 0, s, 'bottom');
+          this.addSerif(path, adv - 40 - s, 0, s, 'bottom');
+          break;
+        }
 
-        // Floating dot
-        const dotY = h + 70;
-        path.moveTo(adv - 50 - s, dotY);
-        path.lineTo(adv - 50, dotY);
-        path.lineTo(adv - 50, dotY + s * 1.2);
-        path.lineTo(adv - 50 - s, dotY + s * 1.2);
-        path.close();
-        break;
-      }
-      case 'k': {
-        adv = 500;
-        path.moveTo(50, 0);
-        path.lineTo(50 + s, 0);
-        path.lineTo(50 + s, ascY);
-        path.lineTo(50, ascY);
-        path.close();
+        case 'n': {
+          adv = Math.round(520 * this.widthScale);
+          this.addRect(path, 50, 0, s, h);
+          this.addRect(path, adv - 50 - s, 0, s, h * 0.85);
+          const rx = (adv - 100) / 2;
+          this.addOval(path, 50 + rx, h * 0.5, rx, h * 0.5, rx - s, h * 0.5 - hStem);
+          this.addSerif(path, 50, 0, s, 'bottom');
+          this.addSerif(path, adv - 50 - s, 0, s, 'bottom');
+          break;
+        }
 
-        // Upper arm
-        path.moveTo(50 + s, h * 0.4);
-        path.lineTo(adv - 50 - s, h);
-        path.lineTo(adv - 50, h);
-        path.lineTo(50 + s, h * 0.35);
-        path.close();
+        case 'o': {
+          adv = Math.round(500 * this.widthScale);
+          const rx = (adv - 90) / 2;
+          const ry = h / 2;
+          this.addOval(path, 45 + rx, ry, rx, ry, rx - s, ry - hStem);
+          break;
+        }
 
-        // Lower leg
-        path.moveTo(50 + s * 1.5, h * 0.42);
-        path.lineTo(adv - 40, 0);
-        path.lineTo(adv - 40 - s, 0);
-        path.lineTo(50 + s, h * 0.38);
-        path.close();
+        case 'p': {
+          adv = Math.round(520 * this.widthScale);
+          this.addRect(path, 50, descY, s, h - descY);
+          const rx = (adv - 100 - s) / 2;
+          const ry = h / 2;
+          this.addOval(path, 50 + s + rx, ry, rx, ry, rx - s, ry - hStem);
+          this.addSerif(path, 50, descY, s, 'bottom');
+          break;
+        }
 
-        this.addDaggerSerif(path, 50, ascY, s, 'top');
-        this.addDaggerSerif(path, 50, 0, s, 'bottom');
-        this.addDaggerSerif(path, adv - 40 - s, 0, s, 'bottom');
-        break;
-      }
-      case 'l': {
-        adv = 280;
-        const mid = adv / 2;
-        path.moveTo(mid - s / 2, 0);
-        path.lineTo(mid + s / 2, 0);
-        path.lineTo(mid + s / 2, ascY);
-        path.lineTo(mid - s / 2, ascY);
-        path.close();
+        case 'q': {
+          adv = Math.round(520 * this.widthScale);
+          const rx = (adv - 100 - s) / 2;
+          const ry = h / 2;
+          this.addOval(path, 50 + rx, ry, rx, ry, rx - s, ry - hStem);
+          this.addRect(path, adv - 50 - s, descY, s, h - descY);
+          this.addSerif(path, adv - 50 - s, descY, s, 'bottom');
+          break;
+        }
 
-        this.addDaggerSerif(path, mid - s / 2, ascY, s, 'top');
-        this.addDaggerSerif(path, mid - s / 2, 0, s, 'bottom');
-        break;
-      }
-      case 'm': {
-        adv = 720;
-        const w3 = adv / 3;
+        case 'r': {
+          adv = Math.round(380 * this.widthScale);
+          this.addRect(path, 50, 0, s, h);
+          this.addOval(path, 50 + 80, h * 0.6, 80, h * 0.4, 80 - s, h * 0.4 - hStem);
+          this.addSerif(path, 50, 0, s, 'bottom');
+          break;
+        }
 
-        // Stem 1
-        path.moveTo(40, 0);
-        path.lineTo(40 + s, 0);
-        path.lineTo(40 + s, h);
-        path.lineTo(40, h);
-        path.close();
+        case 's': {
+          adv = Math.round(460 * this.widthScale);
+          const rx = (adv - 90) / 2;
+          const ry1 = (h * 0.54) / 2;
+          const ry2 = (h * 0.54) / 2;
+          this.addOval(path, 45 + rx, h * 0.73, rx, ry1, rx - s, ry1 - hStem);
+          this.addOval(path, 45 + rx, h * 0.27, rx, ry2, rx - s, ry2 - hStem);
+          break;
+        }
 
-        // Arch 1 -> Stem 2
-        path.moveTo(40 + s, h);
-        path.curveTo(w3 + 40, h, w3 + 40, h * 0.5, w3 + 40, 0);
-        path.lineTo(w3 + 40 - s, 0);
-        path.curveTo(w3 + 40 - s, h * 0.5, 40 + s, h - s, 40 + s, h - s);
-        path.close();
+        case 't': {
+          adv = Math.round(360 * this.widthScale);
+          const mid = 60;
+          this.addRect(path, mid, 0, s, ascY * 0.85);
+          this.addRect(path, 30, h - hStem, 120, hStem); // Crossbar
+          this.addRect(path, mid, 0, 70, hStem); // Bottom hook
+          break;
+        }
 
-        // Arch 2 -> Stem 3
-        path.moveTo(w3 + 40, h);
-        path.curveTo(adv - 40, h, adv - 40, h * 0.5, adv - 40, 0);
-        path.lineTo(adv - 40 - s, 0);
-        path.curveTo(adv - 40 - s, h * 0.5, w3 + 40, h - s, w3 + 40, h - s);
-        path.close();
+        case 'u': {
+          adv = Math.round(520 * this.widthScale);
+          this.addRect(path, 50, h * 0.35, s, h * 0.65);
+          this.addRect(path, adv - 50 - s, 0, s, h);
+          const rx = (adv - 100) / 2;
+          const ry = h * 0.35;
+          this.addOval(path, 50 + rx, ry, rx, ry, rx - s, ry - hStem);
+          this.addSerif(path, 50, h, s, 'top');
+          this.addSerif(path, adv - 50 - s, 0, s, 'bottom');
+          break;
+        }
 
-        this.addDaggerSerif(path, 40, 0, s, 'bottom');
-        this.addDaggerSerif(path, w3 + 40 - s, 0, s, 'bottom');
-        this.addDaggerSerif(path, adv - 40 - s, 0, s, 'bottom');
-        break;
-      }
-      case 'n': {
-        adv = 520;
-        path.moveTo(50, 0);
-        path.lineTo(50 + s, 0);
-        path.lineTo(50 + s, h);
-        path.lineTo(50, h);
-        path.close();
+        case 'v': {
+          adv = Math.round(500 * this.widthScale);
+          const mid = adv / 2;
+          path.moveTo(this.applySlant(45, h).x, this.applySlant(45, h).y);
+          path.lineTo(this.applySlant(mid, 0).x, this.applySlant(mid, 0).y);
+          path.lineTo(this.applySlant(mid + s * 0.8, 0).x, this.applySlant(mid + s * 0.8, 0).y);
+          path.lineTo(this.applySlant(adv - 45, h).x, this.applySlant(adv - 45, h).y);
+          path.lineTo(this.applySlant(adv - 45 - s, h).x, this.applySlant(adv - 45 - s, h).y);
+          path.lineTo(this.applySlant(mid, s * 1.5).x, this.applySlant(mid, s * 1.5).y);
+          path.lineTo(this.applySlant(45 + s, h).x, this.applySlant(45 + s, h).y);
+          path.close();
+          this.addSerif(path, 45, h, s, 'top');
+          this.addSerif(path, adv - 45 - s, h, s, 'top');
+          break;
+        }
 
-        path.moveTo(50 + s, h);
-        path.curveTo(adv - 50, h, adv - 50, h * 0.5, adv - 50, 0);
-        path.lineTo(adv - 50 - s, 0);
-        path.curveTo(adv - 50 - s, h * 0.5, 50 + s, h - s, 50 + s, h - s);
-        path.close();
+        case 'w': {
+          adv = Math.round(720 * this.widthScale);
+          const q1 = adv * 0.28;
+          const mid = adv * 0.5;
+          const q3 = adv * 0.72;
+          path.moveTo(this.applySlant(35, h).x, this.applySlant(35, h).y);
+          path.lineTo(this.applySlant(q1, 0).x, this.applySlant(q1, 0).y);
+          path.lineTo(this.applySlant(mid, h).x, this.applySlant(mid, h).y);
+          path.lineTo(this.applySlant(q3, 0).x, this.applySlant(q3, 0).y);
+          path.lineTo(this.applySlant(adv - 35, h).x, this.applySlant(adv - 35, h).y);
+          path.lineTo(this.applySlant(adv - 35 - s, h).x, this.applySlant(adv - 35 - s, h).y);
+          path.lineTo(this.applySlant(q3, s * 1.5).x, this.applySlant(q3, s * 1.5).y);
+          path.lineTo(this.applySlant(mid, h - s).x, this.applySlant(mid, h - s).y);
+          path.lineTo(this.applySlant(q1, s * 1.5).x, this.applySlant(q1, s * 1.5).y);
+          path.lineTo(this.applySlant(35 + s, h).x, this.applySlant(35 + s, h).y);
+          path.close();
+          this.addSerif(path, 35, h, s, 'top');
+          this.addSerif(path, adv - 35 - s, h, s, 'top');
+          break;
+        }
 
-        this.addDaggerSerif(path, 50, 0, s, 'bottom');
-        this.addDaggerSerif(path, adv - 50 - s, 0, s, 'bottom');
-        break;
-      }
-      case 'o': {
-        adv = 500;
-        path.moveTo(adv / 2, 0);
-        path.curveTo(40, 0, 40, h, adv / 2, h);
-        path.curveTo(adv - 40, h, adv - 40, 0, adv / 2, 0);
-        path.close();
+        case 'x': {
+          adv = Math.round(500 * this.widthScale);
+          path.moveTo(this.applySlant(45, h).x, this.applySlant(45, h).y);
+          path.lineTo(this.applySlant(adv - 45, 0).x, this.applySlant(adv - 45, 0).y);
+          path.lineTo(this.applySlant(adv - 45 - s, 0).x, this.applySlant(adv - 45 - s, 0).y);
+          path.lineTo(this.applySlant(45 + s, h).x, this.applySlant(45 + s, h).y);
+          path.close();
+          path.moveTo(this.applySlant(adv - 45, h).x, this.applySlant(adv - 45, h).y);
+          path.lineTo(this.applySlant(45, 0).x, this.applySlant(45, 0).y);
+          path.lineTo(this.applySlant(45 + s, 0).x, this.applySlant(45 + s, 0).y);
+          path.lineTo(this.applySlant(adv - 45 - s, h).x, this.applySlant(adv - 45 - s, h).y);
+          path.close();
+          this.addSerif(path, 45, h, s, 'top');
+          this.addSerif(path, adv - 45 - s, h, s, 'top');
+          this.addSerif(path, 45, 0, s, 'bottom');
+          this.addSerif(path, adv - 45 - s, 0, s, 'bottom');
+          break;
+        }
 
-        path.moveTo(adv / 2, s);
-        path.curveTo(adv - 40 - s, s, adv - 40 - s, h - s, adv / 2, h - s);
-        path.curveTo(40 + s, h - s, 40 + s, s, adv / 2, s);
-        path.close();
-        break;
-      }
-      case 'p': {
-        adv = 500;
-        path.moveTo(50, descY);
-        path.lineTo(50 + s, descY);
-        path.lineTo(50 + s, h);
-        path.lineTo(50, h);
-        path.close();
+        case 'y': {
+          adv = Math.round(500 * this.widthScale);
+          const mid = adv / 2;
+          path.moveTo(this.applySlant(45, h).x, this.applySlant(45, h).y);
+          path.lineTo(this.applySlant(mid, 0).x, this.applySlant(mid, 0).y);
+          path.lineTo(this.applySlant(adv - 45, h).x, this.applySlant(adv - 45, h).y);
+          path.lineTo(this.applySlant(adv - 45 - s, h).x, this.applySlant(adv - 45 - s, h).y);
+          path.lineTo(this.applySlant(mid, s).x, this.applySlant(mid, s).y);
+          path.lineTo(this.applySlant(45 + s, h).x, this.applySlant(45 + s, h).y);
+          path.close();
+          this.addRect(path, mid - s / 2, descY, s, -descY + s);
+          this.addSerif(path, 45, h, s, 'top');
+          this.addSerif(path, adv - 45 - s, h, s, 'top');
+          this.addSerif(path, mid - s / 2, descY, s, 'bottom');
+          break;
+        }
 
-        path.moveTo(50 + s, h);
-        path.curveTo(adv, h, adv, 0, 50 + s, 0);
-        path.lineTo(50 + s, s);
-        path.curveTo(adv - s, s, adv - s, h - s, 50 + s, h - s);
-        path.close();
-
-        this.addDaggerSerif(path, 50, descY, s, 'bottom');
-        break;
-      }
-      case 'q': {
-        adv = 500;
-        path.moveTo(adv - 50 - s, descY);
-        path.lineTo(adv - 50, descY);
-        path.lineTo(adv - 50, h);
-        path.lineTo(adv - 50 - s, h);
-        path.close();
-
-        path.moveTo(adv - 50 - s, h);
-        path.curveTo(40, h, 40, 0, adv - 50 - s, 0);
-        path.lineTo(adv - 50 - s, s);
-        path.curveTo(40 + s, s, 40 + s, h - s, adv - 50 - s, h - s);
-        path.close();
-
-        this.addDaggerSerif(path, adv - 50 - s, descY, s, 'bottom');
-        break;
-      }
-      case 'r': {
-        adv = 440;
-        path.moveTo(50, 0);
-        path.lineTo(50 + s, 0);
-        path.lineTo(50 + s, h);
-        path.lineTo(50, h);
-        path.close();
-
-        path.moveTo(50 + s, h - s * 0.8);
-        path.curveTo(adv - 40, h, adv - 40, h * 0.7, adv - 40, h * 0.6);
-        path.lineTo(adv - 40 - s, h * 0.6);
-        path.curveTo(adv - 40 - s, h * 0.7, 50 + s, h - s * 1.5, 50 + s, h - s * 1.5);
-        path.close();
-
-        this.addDaggerSerif(path, 50, 0, s, 'bottom');
-        break;
-      }
-      case 's': {
-        adv = 460;
-        path.moveTo(adv - 50, h * 0.8);
-        path.curveTo(adv - 50, h, 50, h, 50, h * 0.65);
-        path.curveTo(50, h * 0.35, adv - 50, h * 0.35, adv - 50, h * 0.2);
-        path.curveTo(adv - 50, 0, 50, 0, 50, h * 0.2);
-        path.lineTo(50, h * 0.2 + s);
-        path.curveTo(50 + s, s, adv - 50 - s, s, adv - 50 - s, h * 0.2);
-        path.curveTo(adv - 50 - s, h * 0.45, 50 + s, h * 0.45, 50 + s, h * 0.65);
-        path.curveTo(50 + s, h - s, adv - 50 - s, h - s, adv - 50 - s, h * 0.8);
-        path.close();
-        break;
-      }
-      case 't': {
-        adv = 380;
-        const mid = adv / 2;
-        path.moveTo(mid - s / 2, 0);
-        path.lineTo(mid + s / 2, 0);
-        path.lineTo(mid + s / 2, ascY * 0.85);
-        path.lineTo(mid - s / 2, ascY * 0.85);
-        path.close();
-
-        path.moveTo(30, h);
-        path.lineTo(adv - 30, h);
-        path.lineTo(adv - 30, h + s * 0.8);
-        path.lineTo(30, h + s * 0.8);
-        path.close();
-
-        this.addDaggerSerif(path, mid - s / 2, 0, s, 'bottom');
-        break;
-      }
-      case 'u': {
-        adv = 500;
-        path.moveTo(50, h);
-        path.lineTo(50 + s, h);
-        path.lineTo(50 + s, h * 0.25);
-        path.curveTo(50 + s, 0, adv - 50 - s, 0, adv - 50 - s, h * 0.25);
-        path.lineTo(adv - 50 - s, h);
-        path.lineTo(adv - 50, h);
-        path.lineTo(adv - 50, h * 0.25);
-        path.curveTo(adv - 50, -25, 50, -25, 50, h * 0.25);
-        path.close();
-
-        this.addDaggerSerif(path, 50, h, s, 'top');
-        this.addDaggerSerif(path, adv - 50 - s, h, s, 'top');
-        break;
-      }
-      case 'v': {
-        adv = 480;
-        const mid = adv / 2;
-        path.moveTo(40, h);
-        path.lineTo(mid, 0);
-        path.lineTo(mid + s * 0.8, 0);
-        path.lineTo(adv - 40, h);
-        path.lineTo(adv - 40 - s, h);
-        path.lineTo(mid, s * 1.5);
-        path.lineTo(40 + s, h);
-        path.close();
-
-        this.addDaggerSerif(path, 40, h, s, 'top');
-        this.addDaggerSerif(path, adv - 40 - s, h, s, 'top');
-        break;
-      }
-      case 'w': {
-        adv = 640;
-        const q1 = adv * 0.28;
-        const mid = adv * 0.5;
-        const q3 = adv * 0.72;
-
-        path.moveTo(30, h);
-        path.lineTo(q1, 0);
-        path.lineTo(mid, h);
-        path.lineTo(q3, 0);
-        path.lineTo(adv - 30, h);
-        path.lineTo(adv - 30 - s, h);
-        path.lineTo(q3, s * 1.5);
-        path.lineTo(mid, h - s);
-        path.lineTo(q1, s * 1.5);
-        path.lineTo(30 + s, h);
-        path.close();
-
-        this.addDaggerSerif(path, 30, h, s, 'top');
-        this.addDaggerSerif(path, adv - 30 - s, h, s, 'top');
-        break;
-      }
-      case 'x': {
-        adv = 480;
-        path.moveTo(40, h);
-        path.lineTo(adv - 40, 0);
-        path.lineTo(adv - 40 - s, 0);
-        path.lineTo(40 + s, h);
-        path.close();
-
-        path.moveTo(adv - 40, h);
-        path.lineTo(40, 0);
-        path.lineTo(40 + s, 0);
-        path.lineTo(adv - 40 - s, h);
-        path.close();
-
-        this.addDaggerSerif(path, 40, h, s, 'top');
-        this.addDaggerSerif(path, adv - 40 - s, h, s, 'top');
-        this.addDaggerSerif(path, 40, 0, s, 'bottom');
-        this.addDaggerSerif(path, adv - 40 - s, 0, s, 'bottom');
-        break;
-      }
-      case 'y': {
-        adv = 480;
-        const mid = adv / 2;
-        path.moveTo(40, h);
-        path.lineTo(mid, 0);
-        path.lineTo(adv - 40, h);
-        path.lineTo(adv - 40 - s, h);
-        path.lineTo(mid, s * 0.8);
-        path.lineTo(40 + s, h);
-        path.close();
-
-        path.moveTo(mid, 0);
-        path.lineTo(30, descY);
-        path.lineTo(30 + s, descY);
-        path.lineTo(mid + s, 0);
-        path.close();
-
-        this.addDaggerSerif(path, 40, h, s, 'top');
-        this.addDaggerSerif(path, adv - 40 - s, h, s, 'top');
-        break;
-      }
-      case 'z': {
-        adv = 440;
-        path.moveTo(40, h - s);
-        path.lineTo(adv - 40, h - s);
-        path.lineTo(adv - 40, h);
-        path.lineTo(40, h);
-        path.close();
-
-        path.moveTo(adv - 40 - s, h - s);
-        path.lineTo(40, s);
-        path.lineTo(40 + s, s);
-        path.lineTo(adv - 40, h - s);
-        path.close();
-
-        path.moveTo(40, 0);
-        path.lineTo(adv - 40, 0);
-        path.lineTo(adv - 40, s);
-        path.lineTo(40, s);
-        path.close();
-        break;
-      }
-      default: {
-        adv = 480;
-        path.moveTo(50, 0);
-        path.lineTo(50 + s, 0);
-        path.lineTo(50 + s, h);
-        path.lineTo(50, h);
-        path.close();
-        break;
+        case 'z': {
+          adv = Math.round(480 * this.widthScale);
+          this.addRect(path, 45, h - hStem, adv - 90, hStem);
+          path.moveTo(this.applySlant(adv - 45 - s, h - hStem).x, this.applySlant(adv - 45 - s, h - hStem).y);
+          path.lineTo(this.applySlant(45, hStem).x, this.applySlant(45, hStem).y);
+          path.lineTo(this.applySlant(45 + s * 1.2, hStem).x, this.applySlant(45 + s * 1.2, hStem).y);
+          path.lineTo(this.applySlant(adv - 45, h - hStem).x, this.applySlant(adv - 45, h - hStem).y);
+          path.close();
+          this.addRect(path, 45, 0, adv - 90, hStem);
+          break;
+        }
       }
     }
 
@@ -1285,212 +1110,101 @@ export class GlyphVectorEngine {
   }
 
   /**
-   * Synthesizes vector contour paths for Numbers 0-9.
+   * Numerals (0-9).
    */
   private createNumberGlyph(char: string, unicode: number): Glyph {
     const path = new Path();
-    const s = this.stem;
+    const s = Math.round(this.stem * 0.95);
+    const hStem = Math.max(18, Math.round(s * this.contrastRatio));
     const h = this.capH;
-    let adv = 560;
+    const adv = this.genre === 'monospace' ? 600 : Math.round(580 * this.widthScale);
 
     switch (char) {
       case '0': {
-        adv = 560;
-        path.moveTo(adv / 2, 0);
-        path.curveTo(40, 0, 40, h, adv / 2, h);
-        path.curveTo(adv - 40, h, adv - 40, 0, adv / 2, 0);
-        path.close();
-
-        path.moveTo(adv / 2, s);
-        path.curveTo(adv - 40 - s, s, adv - 40 - s, h - s, adv / 2, h - s);
-        path.curveTo(40 + s, h - s, 40 + s, s, adv / 2, s);
-        path.close();
+        const rx = (adv - 100) / 2;
+        const ry = h / 2;
+        this.addOval(path, 50 + rx, ry, rx, ry, rx - s, ry - hStem);
         break;
       }
       case '1': {
-        adv = 380;
         const mid = adv / 2;
-        path.moveTo(mid - s / 2, 0);
-        path.lineTo(mid + s / 2, 0);
-        path.lineTo(mid + s / 2, h);
-        path.lineTo(mid - s / 2, h);
+        this.addRect(path, mid - s / 2, 0, s, h);
+        path.moveTo(this.applySlant(mid - s / 2, h).x, this.applySlant(mid - s / 2, h).y);
+        path.lineTo(this.applySlant(mid - 100, h - 80).x, this.applySlant(mid - 100, h - 80).y);
+        path.lineTo(this.applySlant(mid - 100, h - 80 - hStem).x, this.applySlant(mid - 100, h - 80 - hStem).y);
+        path.lineTo(this.applySlant(mid - s / 2, h - hStem).x, this.applySlant(mid - s / 2, h - hStem).y);
         path.close();
-
-        path.moveTo(mid - s / 2, h - s);
-        path.lineTo(mid - s * 2, h - s * 1.5);
-        path.lineTo(mid - s * 2, h);
-        path.lineTo(mid - s / 2, h);
-        path.close();
-
-        this.addDaggerSerif(path, mid - s / 2, 0, s, 'bottom');
+        this.addRect(path, mid - 100, 0, 200, hStem);
         break;
       }
       case '2': {
-        adv = 540;
-        path.moveTo(60, h * 0.7);
-        path.curveTo(60, h, adv - 60, h, adv - 60, h * 0.7);
-        path.lineTo(60, s);
-        path.lineTo(adv - 60, s);
-        path.lineTo(adv - 60, 0);
-        path.lineTo(60, 0);
-        path.lineTo(adv - 60 - s, h * 0.65);
-        path.curveTo(adv - 60 - s, h - s, 60 + s, h - s, 60 + s, h * 0.7);
+        const rx = (adv - 100) / 2;
+        this.addOval(path, 50 + rx, h * 0.72, rx, h * 0.28, rx - s, h * 0.28 - hStem);
+        path.moveTo(this.applySlant(adv - 50, h * 0.5).x, this.applySlant(adv - 50, h * 0.5).y);
+        path.lineTo(this.applySlant(50, hStem).x, this.applySlant(50, hStem).y);
+        path.lineTo(this.applySlant(50 + s * 1.2, hStem).x, this.applySlant(50 + s * 1.2, hStem).y);
+        path.lineTo(this.applySlant(adv - 50, h * 0.5).x, this.applySlant(adv - 50, h * 0.5).y);
         path.close();
+        this.addRect(path, 50, 0, adv - 100, hStem);
         break;
       }
       case '3': {
-        adv = 540;
-        path.moveTo(60, h - s);
-        path.lineTo(adv - 60, h - s);
-        path.lineTo(adv - 60, h);
-        path.lineTo(60, h);
-        path.close();
-
-        path.moveTo(adv - 60 - s, h - s);
-        path.lineTo(adv / 2 - s / 2, h * 0.52);
-        path.lineTo(adv / 2 + s / 2, h * 0.52);
-        path.lineTo(adv - 60, h - s);
-        path.close();
-
-        path.moveTo(adv / 2 - s / 2, h * 0.52);
-        path.curveTo(adv + 10, h * 0.52, adv + 10, 0, 60, 0);
-        path.lineTo(60, s);
-        path.curveTo(adv - 60 - s, s, adv - 60 - s, h * 0.52 - s, adv / 2 - s / 2, h * 0.52 - s);
-        path.close();
+        const rx = (adv - 100) / 2;
+        const ry = (h * 0.54) / 2;
+        this.addOval(path, 50 + rx, h * 0.73, rx, ry, rx - s, ry - hStem);
+        this.addOval(path, 50 + rx, h * 0.27, rx, ry, rx - s, ry - hStem);
+        this.addRect(path, adv * 0.4, h * 0.5 - hStem / 2, adv * 0.4, hStem);
         break;
       }
       case '4': {
-        adv = 560;
-        // Main vertical stem
-        path.moveTo(adv - 120 - s, 0);
-        path.lineTo(adv - 120, 0);
-        path.lineTo(adv - 120, h);
-        path.lineTo(adv - 120 - s, h);
+        this.addRect(path, adv - 120 - s, 0, s, h);
+        path.moveTo(this.applySlant(adv - 120, h).x, this.applySlant(adv - 120, h).y);
+        path.lineTo(this.applySlant(50, h * 0.3).x, this.applySlant(50, h * 0.3).y);
+        path.lineTo(this.applySlant(50, h * 0.3 - hStem).x, this.applySlant(50, h * 0.3 - hStem).y);
+        path.lineTo(this.applySlant(adv - 120, h * 0.3 - hStem).x, this.applySlant(adv - 120, h * 0.3 - hStem).y);
         path.close();
-
-        // Diagonal leg
-        path.moveTo(adv - 120 - s, h);
-        path.lineTo(50, h * 0.35);
-        path.lineTo(50, h * 0.35 - s);
-        path.lineTo(adv - 120 - s, h * 0.35 - s);
-        path.close();
-
-        // Horizontal crossbar
-        path.moveTo(40, h * 0.35 - s);
-        path.lineTo(adv - 40, h * 0.35 - s);
-        path.lineTo(adv - 40, h * 0.35);
-        path.lineTo(40, h * 0.35);
-        path.close();
-
-        this.addDaggerSerif(path, adv - 120 - s, 0, s, 'bottom');
+        this.addRect(path, 50, h * 0.3 - hStem, adv - 100, hStem);
         break;
       }
       case '5': {
-        adv = 540;
-        path.moveTo(60, h - s);
-        path.lineTo(adv - 60, h - s);
-        path.lineTo(adv - 60, h);
-        path.lineTo(60, h);
-        path.close();
-
-        path.moveTo(60, h * 0.5);
-        path.lineTo(60 + s, h * 0.5);
-        path.lineTo(60 + s, h);
-        path.lineTo(60, h);
-        path.close();
-
-        path.moveTo(60 + s, h * 0.55);
-        path.curveTo(adv + 20, h * 0.55, adv + 20, 0, 60, 0);
-        path.lineTo(60, s);
-        path.curveTo(adv - 60 - s, s, adv - 60 - s, h * 0.55 - s, 60 + s, h * 0.55 - s);
-        path.close();
+        this.addRect(path, 60, h * 0.5, s, h * 0.5);
+        this.addRect(path, 60, h - hStem, adv - 120, hStem);
+        const rx = (adv - 110) / 2;
+        const ry = (h * 0.58) / 2;
+        this.addOval(path, 55 + rx, ry, rx, ry, rx - s, ry - hStem);
         break;
       }
       case '6': {
-        adv = 540;
-        path.moveTo(adv / 2, 0);
-        path.curveTo(40, 0, 40, h * 0.65, adv / 2, h * 0.65);
-        path.curveTo(adv - 40, h * 0.65, adv - 40, 0, adv / 2, 0);
-        path.close();
-
-        path.moveTo(adv / 2, s);
-        path.curveTo(adv - 40 - s, s, adv - 40 - s, h * 0.65 - s, adv / 2, h * 0.65 - s);
-        path.curveTo(40 + s, h * 0.65 - s, 40 + s, s, adv / 2, s);
-        path.close();
-
-        path.moveTo(40, h * 0.35);
-        path.curveTo(40, h, adv - 60, h, adv - 60, h - s);
-        path.lineTo(adv - 60 - s, h - s);
-        path.curveTo(adv - 60 - s, h - s, 40 + s, h - s, 40 + s, h * 0.35);
-        path.close();
+        const rx = (adv - 100) / 2;
+        const ry = (h * 0.55) / 2;
+        this.addOval(path, 50 + rx, ry, rx, ry, rx - s, ry - hStem);
+        this.addRect(path, 50, ry, s, h - ry);
+        this.addRect(path, 50, h - hStem, adv - 140, hStem);
         break;
       }
       case '7': {
-        adv = 540;
-        path.moveTo(50, h - s);
-        path.lineTo(adv - 50, h - s);
-        path.lineTo(adv - 50, h);
-        path.lineTo(50, h);
+        this.addRect(path, 50, h - hStem, adv - 100, hStem);
+        path.moveTo(this.applySlant(adv - 50, h).x, this.applySlant(adv - 50, h).y);
+        path.lineTo(this.applySlant(adv * 0.35, 0).x, this.applySlant(adv * 0.35, 0).y);
+        path.lineTo(this.applySlant(adv * 0.35 + s * 1.1, 0).x, this.applySlant(adv * 0.35 + s * 1.1, 0).y);
+        path.lineTo(this.applySlant(adv - 50, h - s * 1.1).x, this.applySlant(adv - 50, h - s * 1.1).y);
         path.close();
-
-        path.moveTo(adv - 50 - s, h - s);
-        path.lineTo(120, 0);
-        path.lineTo(120 + s, 0);
-        path.lineTo(adv - 50, h - s);
-        path.close();
-
-        this.addDaggerSerif(path, 120, 0, s, 'bottom');
         break;
       }
       case '8': {
-        adv = 540;
-        // Upper loop
-        path.moveTo(adv / 2, h * 0.5);
-        path.curveTo(60, h * 0.5, 60, h, adv / 2, h);
-        path.curveTo(adv - 60, h, adv - 60, h * 0.5, adv / 2, h * 0.5);
-        path.close();
-        path.moveTo(adv / 2, h * 0.5 + s / 2);
-        path.curveTo(adv - 60 - s, h * 0.5 + s / 2, adv - 60 - s, h - s, adv / 2, h - s);
-        path.curveTo(60 + s, h - s, 60 + s, h * 0.5 + s / 2, adv / 2, h * 0.5 + s / 2);
-        path.close();
-
-        // Lower loop
-        path.moveTo(adv / 2, 0);
-        path.curveTo(50, 0, 50, h * 0.52, adv / 2, h * 0.52);
-        path.curveTo(adv - 50, h * 0.52, adv - 50, 0, adv / 2, 0);
-        path.close();
-        path.moveTo(adv / 2, s);
-        path.curveTo(adv - 50 - s, s, adv - 50 - s, h * 0.52 - s / 2, adv / 2, h * 0.52 - s / 2);
-        path.curveTo(50 + s, h * 0.52 - s / 2, 50 + s, s, adv / 2, s);
-        path.close();
+        const rx = (adv - 100) / 2;
+        const ry1 = (h * 0.48) / 2;
+        const ry2 = (h * 0.52) / 2;
+        this.addOval(path, 50 + rx, h * 0.74, rx, ry1, rx - s, ry1 - hStem);
+        this.addOval(path, 50 + rx, h * 0.26, rx, ry2, rx - s, ry2 - hStem);
         break;
       }
       case '9': {
-        adv = 540;
-        path.moveTo(adv / 2, h * 0.35);
-        path.curveTo(40, h * 0.35, 40, h, adv / 2, h);
-        path.curveTo(adv - 40, h, adv - 40, h * 0.35, adv / 2, h * 0.35);
-        path.close();
-
-        path.moveTo(adv / 2, h * 0.35 + s);
-        path.curveTo(adv - 40 - s, h * 0.35 + s, adv - 40 - s, h - s, adv / 2, h - s);
-        path.curveTo(40 + s, h - s, 40 + s, h * 0.35 + s, adv / 2, h * 0.35 + s);
-        path.close();
-
-        path.moveTo(adv - 40 - s, h * 0.65);
-        path.curveTo(adv - 40 - s, 0, 60, 0, 60, s);
-        path.lineTo(60 + s, s);
-        path.curveTo(60 + s, s * 1.5, adv - 40, s * 1.5, adv - 40, h * 0.65);
-        path.close();
-        break;
-      }
-      default: {
-        adv = 540;
-        path.moveTo(60, 0);
-        path.lineTo(60 + s, 0);
-        path.lineTo(60 + s, h);
-        path.lineTo(60, h);
-        path.close();
+        const rx = (adv - 100) / 2;
+        const ry = (h * 0.55) / 2;
+        this.addOval(path, 50 + rx, h - ry, rx, ry, rx - s, ry - hStem);
+        this.addRect(path, adv - 50 - s, 0, s, h - ry);
+        this.addRect(path, 70, 0, adv - 120, hStem);
         break;
       }
     }
@@ -1504,211 +1218,131 @@ export class GlyphVectorEngine {
   }
 
   /**
-   * Synthesizes vector contour paths for Punctuation marks.
+   * Punctuation marks and common symbols.
    */
   private createPunctuationGlyph(char: string, unicode: number): Glyph {
     const path = new Path();
-    const s = this.stem;
+    const s = Math.round(this.stem * 0.85);
+    const hStem = Math.max(16, Math.round(s * this.contrastRatio));
     const h = this.capH;
     let adv = 320;
 
     switch (char) {
       case '.': {
-        adv = 260;
-        path.moveTo(100, 0);
-        path.lineTo(100 + s, 0);
-        path.lineTo(100 + s, s);
-        path.lineTo(100, s);
-        path.close();
+        adv = 240;
+        this.addRect(path, 120 - s / 2, 0, s, s);
         break;
       }
       case ',': {
-        adv = 260;
-        path.moveTo(100, 0);
-        path.lineTo(100 + s, 0);
-        path.lineTo(100, -s * 1.5);
-        path.lineTo(100 - s * 0.5, -s * 1.5);
+        adv = 240;
+        this.addRect(path, 120 - s / 2, 0, s, s);
+        path.moveTo(this.applySlant(120 + s / 2, s).x, this.applySlant(120 + s / 2, s).y);
+        path.lineTo(this.applySlant(100 - s / 2, -40).x, this.applySlant(100 - s / 2, -40).y);
+        path.lineTo(this.applySlant(120 - s / 2, 0).x, this.applySlant(120 - s / 2, 0).y);
         path.close();
         break;
       }
       case '!': {
-        adv = 300;
+        adv = 260;
         const mid = adv / 2;
-        path.moveTo(mid - s / 2, h * 0.25);
-        path.lineTo(mid + s / 2, h * 0.25);
-        path.lineTo(mid + s * 0.8, h);
-        path.lineTo(mid - s * 0.8, h);
-        path.close();
-
-        path.moveTo(mid - s / 2, 0);
-        path.lineTo(mid + s / 2, 0);
-        path.lineTo(mid + s / 2, s);
-        path.lineTo(mid - s / 2, s);
-        path.close();
+        this.addRect(path, mid - s / 2, 120, s, h - 120);
+        this.addRect(path, mid - s / 2, 0, s, s);
         break;
       }
       case '?': {
         adv = 480;
-        path.moveTo(60, h * 0.7);
-        path.curveTo(60, h, adv - 60, h, adv - 60, h * 0.65);
-        path.curveTo(adv - 60, h * 0.4, adv / 2 + s / 2, h * 0.4, adv / 2 + s / 2, h * 0.25);
-        path.lineTo(adv / 2 - s / 2, h * 0.25);
-        path.curveTo(adv / 2 - s / 2, h * 0.45, adv - 60 - s, h * 0.45, adv - 60 - s, h * 0.65);
-        path.curveTo(adv - 60 - s, h - s, 60 + s, h - s, 60 + s, h * 0.7);
-        path.close();
-
-        const mid = adv / 2;
-        path.moveTo(mid - s / 2, 0);
-        path.lineTo(mid + s / 2, 0);
-        path.lineTo(mid + s / 2, s);
-        path.lineTo(mid - s / 2, s);
-        path.close();
+        const rx = (adv - 100) / 2;
+        this.addOval(path, 50 + rx, h * 0.72, rx, h * 0.28, rx - s, h * 0.28 - hStem);
+        this.addRect(path, adv / 2 - s / 2, 120, s, 140);
+        this.addRect(path, adv / 2 - s / 2, 0, s, s);
         break;
       }
       case ':': {
-        adv = 260;
-        path.moveTo(100, 0);
-        path.lineTo(100 + s, 0);
-        path.lineTo(100 + s, s);
-        path.lineTo(100, s);
-        path.close();
-
-        path.moveTo(100, this.xH - s);
-        path.lineTo(100 + s, this.xH - s);
-        path.lineTo(100 + s, this.xH);
-        path.lineTo(100, this.xH);
-        path.close();
+        adv = 240;
+        const mid = 120 - s / 2;
+        this.addRect(path, mid, 0, s, s);
+        this.addRect(path, mid, this.xH - s, s, s);
         break;
       }
       case ';': {
-        adv = 260;
-        path.moveTo(100, 0);
-        path.lineTo(100 + s, 0);
-        path.lineTo(100, -s * 1.5);
-        path.lineTo(100 - s * 0.5, -s * 1.5);
-        path.close();
-
-        path.moveTo(100, this.xH - s);
-        path.lineTo(100 + s, this.xH - s);
-        path.lineTo(100 + s, this.xH);
-        path.lineTo(100, this.xH);
+        adv = 240;
+        const mid = 120 - s / 2;
+        this.addRect(path, mid, this.xH - s, s, s);
+        this.addRect(path, mid, 0, s, s);
+        path.moveTo(this.applySlant(mid + s, s).x, this.applySlant(mid + s, s).y);
+        path.lineTo(this.applySlant(mid - 15, -40).x, this.applySlant(mid - 15, -40).y);
+        path.lineTo(this.applySlant(mid, 0).x, this.applySlant(mid, 0).y);
         path.close();
         break;
       }
       case '-': {
         adv = 360;
-        path.moveTo(50, this.xH * 0.45);
-        path.lineTo(adv - 50, this.xH * 0.45);
-        path.lineTo(adv - 50, this.xH * 0.45 + s * 0.8);
-        path.lineTo(50, this.xH * 0.45 + s * 0.8);
-        path.close();
+        this.addRect(path, 50, this.xH * 0.5 - hStem / 2, adv - 100, hStem);
         break;
       }
       case '_': {
         adv = 480;
-        path.moveTo(20, -100);
-        path.lineTo(adv - 20, -100);
-        path.lineTo(adv - 20, -100 + s * 0.8);
-        path.lineTo(20, -100 + s * 0.8);
-        path.close();
+        this.addRect(path, 20, -50, adv - 40, hStem);
         break;
       }
       case '+': {
         adv = 480;
         const midX = adv / 2;
         const midY = this.xH * 0.5;
-        path.moveTo(midX - s / 2, midY - 140);
-        path.lineTo(midX + s / 2, midY - 140);
-        path.lineTo(midX + s / 2, midY + 140);
-        path.lineTo(midX - s / 2, midY + 140);
-        path.close();
-
-        path.moveTo(midX - 140, midY - s / 2);
-        path.lineTo(midX + 140, midY - s / 2);
-        path.lineTo(midX + 140, midY + s / 2);
-        path.lineTo(midX - 140, midY + s / 2);
-        path.close();
+        this.addRect(path, 60, midY - hStem / 2, adv - 120, hStem);
+        this.addRect(path, midX - s / 2, midY - (adv - 120) / 2, s, adv - 120);
         break;
       }
       case '=': {
-        adv = 440;
+        adv = 480;
         const midY = this.xH * 0.5;
-        path.moveTo(50, midY + 50);
-        path.lineTo(adv - 50, midY + 50);
-        path.lineTo(adv - 50, midY + 50 + s * 0.8);
-        path.lineTo(50, midY + 50 + s * 0.8);
-        path.close();
-
-        path.moveTo(50, midY - 50);
-        path.lineTo(adv - 50, midY - 50);
-        path.lineTo(adv - 50, midY - 50 + s * 0.8);
-        path.lineTo(50, midY - 50 + s * 0.8);
-        path.close();
+        this.addRect(path, 60, midY + 40, adv - 120, hStem);
+        this.addRect(path, 60, midY - 40 - hStem, adv - 120, hStem);
         break;
       }
       case '/': {
-        adv = 380;
-        path.moveTo(60, 0);
-        path.lineTo(adv - 60, h);
-        path.lineTo(adv - 60 - s, h);
-        path.lineTo(60 - s, 0);
+        adv = 420;
+        path.moveTo(this.applySlant(adv - 60, h).x, this.applySlant(adv - 60, h).y);
+        path.lineTo(this.applySlant(60, this.desc).x, this.applySlant(60, this.desc).y);
+        path.lineTo(this.applySlant(60 + s, this.desc).x, this.applySlant(60 + s, this.desc).y);
+        path.lineTo(this.applySlant(adv - 60 + s, h).x, this.applySlant(adv - 60 + s, h).y);
         path.close();
         break;
       }
       case '(': {
-        adv = 300;
-        path.moveTo(adv - 60, h);
-        path.curveTo(40, h, 40, 0, adv - 60, 0);
-        path.lineTo(adv - 60 + s, 0);
-        path.curveTo(40 + s, 0, 40 + s, h, adv - 60 + s, h);
-        path.close();
+        adv = 320;
+        const rx = 120;
+        const ry = h * 0.6;
+        this.addOval(path, adv - 40, h * 0.4, rx, ry, rx - s, ry - hStem);
         break;
       }
       case ')': {
-        adv = 300;
-        path.moveTo(60, h);
-        path.curveTo(adv - 40, h, adv - 40, 0, 60, 0);
-        path.lineTo(60 - s, 0);
-        path.curveTo(adv - 40 - s, 0, adv - 40 - s, h, 60 - s, h);
-        path.close();
+        adv = 320;
+        const rx = 120;
+        const ry = h * 0.6;
+        this.addOval(path, 40, h * 0.4, rx, ry, rx - s, ry - hStem);
         break;
       }
       case "'": {
-        adv = 220;
-        path.moveTo(100, h - 140);
-        path.lineTo(100 + s * 0.8, h - 140);
-        path.lineTo(100, h);
-        path.lineTo(100 - s * 0.8, h);
-        path.close();
+        adv = 200;
+        this.addRect(path, 100 - s / 2, h - 140, s, 140);
         break;
       }
       case '"': {
-        adv = 340;
-        path.moveTo(90, h - 140);
-        path.lineTo(90 + s * 0.8, h - 140);
-        path.lineTo(90, h);
-        path.lineTo(90 - s * 0.8, h);
-        path.close();
-
-        path.moveTo(210, h - 140);
-        path.lineTo(210 + s * 0.8, h - 140);
-        path.lineTo(210, h);
-        path.lineTo(210 - s * 0.8, h);
-        path.close();
+        adv = 320;
+        this.addRect(path, 80, h - 140, s, 140);
+        this.addRect(path, 200, h - 140, s, 140);
         break;
       }
       default: {
-        path.moveTo(80, 0);
-        path.lineTo(80 + s, 0);
-        path.lineTo(80 + s, h);
-        path.lineTo(80, h);
-        path.close();
+        adv = 300;
+        this.addRect(path, 100, 0, s, h);
         break;
       }
     }
 
     return new Glyph({
-      name: `punct_${unicode}`,
+      name: char,
       unicode,
       advanceWidth: adv,
       path,
