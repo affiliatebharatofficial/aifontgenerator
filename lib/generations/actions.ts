@@ -130,11 +130,13 @@ export async function createGenerationAction(formData: FormData): Promise<Create
     revalidatePath('/dashboard');
     revalidatePath('/dashboard/my-fonts');
 
-    // Trigger real background AI font generation processing pipeline
-    const { GenerationJobService } = await import('@/lib/font/generation/jobProcessor');
-    GenerationJobService.processJob(res.generationId).catch((err) => {
-      console.error('Background font processing error:', err);
-    });
+    // Synchronously await AI font generation processing pipeline to prevent serverless termination
+    try {
+      const { GenerationJobService } = await import('@/lib/font/generation/jobProcessor');
+      await GenerationJobService.processJob(res.generationId);
+    } catch (err) {
+      console.error('Font processing error:', err);
+    }
 
     redirect(`/generate/status/${res.generationId}`);
   }

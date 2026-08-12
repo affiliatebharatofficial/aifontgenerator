@@ -27,13 +27,20 @@ export default async function GenerationStatusPage({
     redirect(`/login?redirect=/generate/status/${generationId}`);
   }
 
-  const generation = await getGenerationStatus(generationId, user.id);
+  let generation = await getGenerationStatus(generationId, user.id);
 
   if (!generation) {
     notFound();
   }
 
-  if (generation.status === 'completed') {
+  // If job is pending or processing, execute processJob server-side to guarantee completion
+  if (generation.status === 'pending' || generation.status === 'processing') {
+    const { GenerationJobService } = await import('@/lib/font/generation/jobProcessor');
+    await GenerationJobService.processJob(generationId);
+    generation = await getGenerationStatus(generationId, user.id);
+  }
+
+  if (generation && generation.status === 'completed') {
     redirect(`/font/${generation.id}`);
   }
 
