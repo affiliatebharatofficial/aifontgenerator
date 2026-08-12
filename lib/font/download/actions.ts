@@ -35,20 +35,37 @@ export async function getFontDownloadUrlAction(
     .eq('user_id', user.id)
     .single();
 
-  if (!generation || generation.status !== 'completed') {
-    return { success: false, error: 'Generation not found or not completed.' };
+  if (!generation) {
+    return { success: false, error: 'Generation not found.' };
   }
 
-  // 3. Verify format record in generated_files table
-  const { data: fileRecord } = await supabase
+  // 3. Verify format record in generated_files table, or compile on demand if missing
+  let { data: fileRecord } = await supabase
     .from('generated_files')
     .select('id, storage_path, download_count')
     .eq('generation_id', generationId)
     .eq('format', format)
     .single();
 
+  if (!fileRecord || generation.status !== 'completed') {
+    try {
+      const { GenerationJobService } = await import('@/lib/font/generation/jobProcessor');
+      await GenerationJobService.processJob(generationId);
+
+      const { data: reFetched } = await supabase
+        .from('generated_files')
+        .select('id, storage_path, download_count')
+        .eq('generation_id', generationId)
+        .eq('format', format)
+        .single();
+      fileRecord = reFetched;
+    } catch (e) {
+      console.error('Failed to compile font on download demand:', e);
+    }
+  }
+
   if (!fileRecord) {
-    return { success: false, error: `Requested ${format.toUpperCase()} format does not exist.` };
+    return { success: false, error: `Requested ${format.toUpperCase()} format could not be generated.` };
   }
 
   await (supabase.from('generated_files') as unknown as {
@@ -64,22 +81,35 @@ export async function getFontDownloadUrlAction(
   const cleanFontName = fontNameRaw.replace(/[^a-zA-Z0-9_-]/g, '_');
   const filename = `${cleanFontName}.${format}`;
 
-  // 5. Generate short-lived signed URL (valid 60 seconds) with download disposition
+  // 5. Generate short-lived signed URL (valid 300 seconds) with download disposition
   const { data: signedData, error: signedError } = await supabase.storage
     .from('fonts')
-    .createSignedUrl(fileRecord.storage_path, 60, {
+    .createSignedUrl(fileRecord.storage_path, 300, {
       download: filename,
     });
 
-  if (signedError || !signedData?.signedUrl) {
-    return { success: false, error: 'Failed to generate secure download link.' };
+  if (!signedError && signedData?.signedUrl) {
+    return {
+      success: true,
+      url: signedData.signedUrl,
+      filename,
+    };
   }
 
-  return {
-    success: true,
-    url: signedData.signedUrl,
-    filename,
-  };
+  // Fallback to public storage URL if signed URL fails
+  const { data: publicData } = supabase.storage
+    .from('fonts')
+    .getPublicUrl(fileRecord.storage_path);
+
+  if (publicData?.publicUrl) {
+    return {
+      success: true,
+      url: publicData.publicUrl,
+      filename,
+    };
+  }
+
+  return { success: false, error: 'Failed to generate secure download link.' };
 }
 
 export async function deleteFontGenerationAction(generationId: string): Promise<{ success: boolean; error?: string }> {
