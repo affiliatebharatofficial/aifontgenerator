@@ -8,6 +8,8 @@ import { DiagonalPrimitive } from './primitives/DiagonalPrimitive';
 import { LatinExtendedPrimitive } from './primitives/LatinExtendedPrimitive';
 import { DevanagariPrimitive } from './primitives/DevanagariPrimitive';
 import { CHARACTER_SETS } from '../character-set/registry';
+import { DEVANAGARI_CONJUNCT_RULES } from '../shaping/devanagariShaper';
+
 
 
 export class StyleAwareGlyphEngine {
@@ -1140,17 +1142,34 @@ export class StyleAwareGlyphEngine {
   // =========================================================================
   private generateDevanagariGlyphs(glyphs: Glyph[]): void {
     const devCore = CHARACTER_SETS.DEVANAGARI_CORE;
-    if (!devCore) return;
+    if (devCore) {
+      for (const d of devCore.glyphList) {
+        const p = new Path();
+        DevanagariPrimitive.addDevanagariGlyph(this.ctx, p, d.code);
 
-    for (const d of devCore.glyphList) {
+        glyphs.push(
+          this.sanitizeGlyph(
+            new Glyph({
+              name: d.name,
+              unicode: d.code,
+              advanceWidth: this.ctx.getAdvanceWidth(640, 'straight'),
+              path: p,
+            })
+          )
+        );
+      }
+    }
+
+    // Generate conjunct ligatures and nukta glyph forms
+    for (const rule of DEVANAGARI_CONJUNCT_RULES) {
       const p = new Path();
-      DevanagariPrimitive.addDevanagariGlyph(this.ctx, p, d.code);
+      DevanagariPrimitive.addDevanagariGlyph(this.ctx, p, rule.code);
 
       glyphs.push(
         this.sanitizeGlyph(
           new Glyph({
-            name: d.name,
-            unicode: d.code,
+            name: rule.name,
+            unicode: rule.code,
             advanceWidth: this.ctx.getAdvanceWidth(640, 'straight'),
             path: p,
           })
@@ -1159,4 +1178,5 @@ export class StyleAwareGlyphEngine {
     }
   }
 }
+
 

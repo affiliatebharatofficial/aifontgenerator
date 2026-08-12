@@ -3,6 +3,8 @@ import wawoff2 from 'wawoff2';
 import type { FontSpecification } from '../specification/types';
 import { StyleAwareGlyphEngine } from '../glyphs/styleAwareEngine';
 import { GlyphVectorEngine } from '../glyphs/vectorEngine';
+import { OpenTypeTableBuilder } from './openTypeTableBuilder';
+
 
 export interface CompiledFontBuffers {
   ttf: Buffer;
@@ -52,6 +54,13 @@ export class FontCompilerService {
       descender,
       glyphs,
     });
+
+    // Build and attach OpenType GSUB table for Devanagari shaping & ligatures
+    const gsubTable = OpenTypeTableBuilder.buildGsubTable(glyphs);
+    if (gsubTable) {
+      font.tables.gsub = gsubTable as any;
+    }
+
 
 
     const styleFamily = spec.styleDNA?.styleFamily || 'GENERAL';

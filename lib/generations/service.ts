@@ -246,8 +246,8 @@ export async function createGenerationJob(input: CreateGenerationInput): Promise
     primaryPayload.seed = input.seed;
   }
 
-  let job: any = null;
-  let insertError: any = null;
+  let job: Record<string, unknown> | null = null;
+  let insertError: { message?: string; details?: string; hint?: string } | null = null;
 
   const firstAttempt = await supabase
     .from('font_generations')
@@ -255,7 +255,7 @@ export async function createGenerationJob(input: CreateGenerationInput): Promise
     .select()
     .single();
 
-  job = firstAttempt.data;
+  job = firstAttempt.data as Record<string, unknown> | null;
   insertError = firstAttempt.error;
 
   // Fallback: If remote Supabase schema has not run Phase 24 migration yet (missing generation_controls/seed column)
@@ -270,7 +270,7 @@ export async function createGenerationJob(input: CreateGenerationInput): Promise
       .select()
       .single();
 
-    job = retryAttempt.data;
+    job = retryAttempt.data as Record<string, unknown> | null;
     insertError = retryAttempt.error;
   }
 
@@ -288,7 +288,7 @@ export async function createGenerationJob(input: CreateGenerationInput): Promise
     eventName: parentId ? 'version_created' : 'generation_started',
     userId: input.userId,
     entityType: 'font_generation',
-    entityId: job.id,
+    entityId: String(job.id || ''),
     metadata: {
       category: input.category,
       generationType,
@@ -298,7 +298,7 @@ export async function createGenerationJob(input: CreateGenerationInput): Promise
 
   return {
     success: true,
-    generationId: job.id,
+    generationId: String(job.id || ''),
     status: 'pending',
   };
 }

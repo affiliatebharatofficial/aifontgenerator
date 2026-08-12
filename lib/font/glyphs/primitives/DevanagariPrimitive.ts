@@ -345,6 +345,127 @@ export class DevanagariPrimitive {
         RingPrimitive.addRing(ctx, path, 335, capH + 80, Math.round(stem * 1.2), Math.round(stem * 1.2), stem, hStem, code);
         break;
 
+      // --- CONJUNCTS (0xE001 - 0xE013) ---
+      case 0xE001: // क्र (dvKRA)
+        addShirorekha(nominalW);
+        StemPrimitive.addStem(ctx, path, 300, 0, stem, capH - hStem, code);
+        RingPrimitive.addRing(ctx, path, 80, Math.round(capH * 0.2), 220, Math.round(capH * 0.5), stem, hStem, code);
+        DiagonalPrimitive.addDiagonal(ctx, path, 300 + stem, Math.round(capH * 0.5), 140, -Math.round(capH * 0.4), stem, code);
+        // Rakar leg
+        DiagonalPrimitive.addDiagonal(ctx, path, 300, Math.round(capH * 0.4), -120, -Math.round(capH * 0.35), stem, code);
+        break;
+
+      case 0xE002: // प्र (dvPRA)
+        addShirorekha(520);
+        StemPrimitive.addStem(ctx, path, 100, Math.round(capH * 0.3), stem, capH - Math.round(capH * 0.3) - hStem, code);
+        StemPrimitive.addStem(ctx, path, 100, Math.round(capH * 0.2), 260, hStem, code);
+        addRightKanaStem(360);
+        // Rakar leg
+        DiagonalPrimitive.addDiagonal(ctx, path, 360, Math.round(capH * 0.4), -120, -Math.round(capH * 0.35), stem, code);
+        break;
+
+      case 0xE003: // ब्र (dvBRA)
+        addShirorekha(560);
+        RingPrimitive.addRing(ctx, path, 80, Math.round(capH * 0.2), 240, Math.round(capH * 0.5), stem, hStem, code);
+        DiagonalPrimitive.addDiagonal(ctx, path, 100, Math.round(capH * 0.65), 180, -Math.round(capH * 0.45), hStem, code);
+        addRightKanaStem(400);
+        DiagonalPrimitive.addDiagonal(ctx, path, 400, Math.round(capH * 0.4), -120, -Math.round(capH * 0.35), stem, code);
+        break;
+
+      case 0xE004: // ग्र (dvGRA)
+        addShirorekha(520);
+        StemPrimitive.addStem(ctx, path, 140, Math.round(capH * 0.25), stem, capH - Math.round(capH * 0.25) - hStem, code);
+        RingPrimitive.addRing(ctx, path, 80, Math.round(capH * 0.15), 120, Math.round(capH * 0.25), stem, hStem, code);
+        addRightKanaStem(380);
+        DiagonalPrimitive.addDiagonal(ctx, path, 380, Math.round(capH * 0.4), -120, -Math.round(capH * 0.35), stem, code);
+        break;
+
+      case 0xE005: // त्र (dvTRA)
+        addShirorekha(520);
+        addRightKanaStem(360);
+        DiagonalPrimitive.addDiagonal(ctx, path, 360, Math.round(capH * 0.65), -180, -Math.round(capH * 0.3), stem, code);
+        DiagonalPrimitive.addDiagonal(ctx, path, 360, Math.round(capH * 0.35), -180, -Math.round(capH * 0.35), stem, code);
+        break;
+
+      case 0xE006: // श्र (dvSHRA)
+        addShirorekha(560);
+        RingPrimitive.addRing(ctx, path, 80, Math.round(capH * 0.45), 180, Math.round(capH * 0.4), stem, hStem, code);
+        DiagonalPrimitive.addDiagonal(ctx, path, 180, Math.round(capH * 0.45), 180, -Math.round(capH * 0.45), stem, code);
+        addRightKanaStem(400);
+        DiagonalPrimitive.addDiagonal(ctx, path, 400, Math.round(capH * 0.4), -120, -Math.round(capH * 0.35), stem, code);
+        break;
+
+      case 0xE007: // क्ष (dvKSHA)
+        addShirorekha(620);
+        RingPrimitive.addRing(ctx, path, 80, Math.round(capH * 0.45), 180, Math.round(capH * 0.4), stem, hStem, code);
+        DiagonalPrimitive.addDiagonal(ctx, path, 180, Math.round(capH * 0.45), -100, -Math.round(capH * 0.4), stem, code);
+        RingPrimitive.addRing(ctx, path, 160, Math.round(capH * 0.15), 160, Math.round(capH * 0.4), stem, hStem, code);
+        addRightKanaStem(440);
+        break;
+
+      case 0xE008: // ज्ञ (dvJNYA)
+        addShirorekha(600);
+        RingPrimitive.addRing(ctx, path, 80, Math.round(capH * 0.25), 180, Math.round(capH * 0.4), stem, hStem, code);
+        StemPrimitive.addStem(ctx, path, 240, Math.round(capH * 0.45), 160, hStem, code);
+        addRightKanaStem(420);
+        DiagonalPrimitive.addDiagonal(ctx, path, 140, Math.round(capH * 0.25), 80, -Math.round(capH * 0.25), stem, code);
+        break;
+
+      case 0xE009: // द्र (dvDRA)
+        addShirorekha(480);
+        StemPrimitive.addStem(ctx, path, 200, capH - Math.round(capH * 0.2), stem, Math.round(capH * 0.2), code);
+        RingPrimitive.addRing(ctx, path, 100, Math.round(capH * 0.35), 200, Math.round(capH * 0.4), stem, hStem, code);
+        DiagonalPrimitive.addDiagonal(ctx, path, 160, Math.round(capH * 0.35), 100, -Math.round(capH * 0.35), stem, code);
+        DiagonalPrimitive.addDiagonal(ctx, path, 200, Math.round(capH * 0.3), -120, -Math.round(capH * 0.3), stem, code);
+        break;
+
+      case 0xE00A: // स्त्र (dvSTRA)
+        addShirorekha(640);
+        RingPrimitive.addRing(ctx, path, 40, Math.round(capH * 0.45), 140, Math.round(capH * 0.45), stem, hStem, code);
+        DiagonalPrimitive.addDiagonal(ctx, path, 100, Math.round(capH * 0.45), 120, -Math.round(capH * 0.45), stem, code);
+        StemPrimitive.addStem(ctx, path, 160, Math.round(capH * 0.45), 140, hStem, code);
+        addRightKanaStem(460);
+        DiagonalPrimitive.addDiagonal(ctx, path, 460, Math.round(capH * 0.65), -140, -Math.round(capH * 0.3), stem, code);
+        DiagonalPrimitive.addDiagonal(ctx, path, 460, Math.round(capH * 0.35), -140, -Math.round(capH * 0.35), stem, code);
+        break;
+
+      case 0xE00B: case 0xE00C: case 0xE00D: case 0xE00E: case 0xE00F: case 0xE010: case 0xE011: case 0xE012: case 0xE013:
+        addShirorekha(600);
+        RingPrimitive.addRing(ctx, path, 60, Math.round(capH * 0.2), 180, Math.round(capH * 0.5), stem, hStem, code);
+        addRightKanaStem(420);
+        break;
+
+      // --- NUKTA FORMS (0xE014 - 0xE01A) ---
+      case 0xE014: // क़
+        this.addDevanagariGlyph(ctx, path, 0x0915); // क
+        RingPrimitive.addRing(ctx, path, 180, -40, Math.round(stem * 1.2), Math.round(stem * 1.2), stem, hStem, code);
+        break;
+      case 0xE015: // ख़
+        this.addDevanagariGlyph(ctx, path, 0x0916); // ख
+        RingPrimitive.addRing(ctx, path, 260, -40, Math.round(stem * 1.2), Math.round(stem * 1.2), stem, hStem, code);
+        break;
+      case 0xE016: // ग़
+        this.addDevanagariGlyph(ctx, path, 0x0917); // ग
+        RingPrimitive.addRing(ctx, path, 180, -40, Math.round(stem * 1.2), Math.round(stem * 1.2), stem, hStem, code);
+        break;
+      case 0xE017: // ज़
+        this.addDevanagariGlyph(ctx, path, 0x091C); // ज
+        RingPrimitive.addRing(ctx, path, 180, -40, Math.round(stem * 1.2), Math.round(stem * 1.2), stem, hStem, code);
+        break;
+      case 0xE018: // ड़
+        this.addDevanagariGlyph(ctx, path, 0x0921); // ड
+        RingPrimitive.addRing(ctx, path, 180, -40, Math.round(stem * 1.2), Math.round(stem * 1.2), stem, hStem, code);
+        break;
+      case 0xE019: // ढ़
+        this.addDevanagariGlyph(ctx, path, 0x0922); // ढ
+        RingPrimitive.addRing(ctx, path, 180, -40, Math.round(stem * 1.2), Math.round(stem * 1.2), stem, hStem, code);
+        break;
+      case 0xE01A: // फ़
+        this.addDevanagariGlyph(ctx, path, 0x092B); // फ
+        RingPrimitive.addRing(ctx, path, 240, -40, Math.round(stem * 1.2), Math.round(stem * 1.2), stem, hStem, code);
+        break;
+
+
       default:
         // Fallback for remaining Devanagari consonants (ख, घ, ङ, छ, झ, ञ, ट, ठ, ड, ढ, ण, थ, ध, श, ष, ळ)
         addShirorekha(nominalW);
