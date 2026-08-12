@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { updateAIProviderAction, testAIProviderConnectionAction } from '@/lib/admin/actions';
 import { Cpu, CheckCircle2, AlertCircle, Save, Send } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
@@ -20,6 +21,7 @@ export function AIProviderCard({
   priority: number;
   keyMasked: string;
 }) {
+  const router = useRouter();
   const [enabled, setEnabled] = useState(initialEnabled);
   const [model, setModel] = useState(initialModel);
   const [priority, setPriority] = useState(initialPriority);
@@ -39,6 +41,7 @@ export function AIProviderCard({
       const res = await updateAIProviderAction(provider, enabled, model, priority, maskedKey);
       if (res.success) {
         setSaveStatus({ type: 'success', msg: res.message || 'Provider configuration saved.' });
+        router.refresh();
       } else {
         setSaveStatus({ type: 'error', msg: res.error || 'Failed to save configuration.' });
       }

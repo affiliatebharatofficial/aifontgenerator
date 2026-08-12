@@ -97,18 +97,37 @@ export async function updateAIProviderAction(
     updatePayload.api_key_masked = apiKeyMasked.trim();
   }
 
-  const { error } = await (supabase.from('ai_providers') as unknown as {
-    upsert: (
-      data: Record<string, unknown>,
-      options?: { onConflict: string }
-    ) => Promise<{ error: { message: string } | null }>;
-  }).upsert(
-    {
+  const { data: existing } = await (supabase.from('ai_providers') as unknown as {
+    select: (cols: string) => {
+      eq: (col: string, val: string) => {
+        maybeSingle: () => Promise<{ data: { id: string } | null }>;
+      };
+    };
+  })
+    .select('id')
+    .eq('provider', provider)
+    .maybeSingle();
+
+  let error: { message: string } | null = null;
+
+  if (existing) {
+    const { error: updateErr } = await (supabase.from('ai_providers') as unknown as {
+      update: (data: Record<string, unknown>) => {
+        eq: (col: string, val: string) => Promise<{ error: { message: string } | null }>;
+      };
+    })
+      .update(updatePayload)
+      .eq('provider', provider);
+    error = updateErr;
+  } else {
+    const { error: insertErr } = await (supabase.from('ai_providers') as unknown as {
+      insert: (data: Record<string, unknown>) => Promise<{ error: { message: string } | null }>;
+    }).insert({
       provider,
       ...updatePayload,
-    },
-    { onConflict: 'provider' }
-  );
+    });
+    error = insertErr;
+  }
 
   if (error) {
     return { success: false, error: error.message };

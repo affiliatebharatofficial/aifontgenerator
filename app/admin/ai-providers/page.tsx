@@ -50,12 +50,13 @@ export default async function AdminAIProvidersPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {defaultProviders.map((pName, index) => {
           const rec = providers.find((p) => p.provider === pName);
+          const isEnabled = rec !== undefined ? rec.enabled : (pName === 'openai' || pName === 'gemini');
           return (
             <AIProviderCard
               key={pName}
               provider={pName}
-              enabled={rec?.enabled ?? (pName === 'openai' || pName === 'gemini')}
-              model={rec?.model || (pName === 'openai' ? 'gpt-4o-mini' : 'gemini-1.5-flash')}
+              enabled={isEnabled}
+              model={rec?.model || (pName === 'openai' ? 'gpt-4o-mini' : pName === 'gemini' ? 'gemini-1.5-flash' : pName === 'deepseek' ? 'deepseek-chat' : 'anthropic/claude-3-haiku')}
               priority={rec?.priority ?? index + 1}
               keyMasked={rec?.api_key_masked || 'Configured via Environment Variables'}
             />
