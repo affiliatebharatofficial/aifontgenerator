@@ -27,4 +27,5 @@ export interface FontSpecification {
   characterSet: CharacterSetConfig;
   advancedSettings: AdvancedSettingsConfig;
   designDescription: string;
+  prompt?: string;
 }

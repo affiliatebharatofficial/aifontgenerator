@@ -17,6 +17,7 @@ export interface AIGenerationOptions {
   weight?: string;
   width?: string;
   style?: string;
+  prompt?: string;
 }
 
 export interface AIExecutionResult {
@@ -235,7 +236,7 @@ Given a font description, output ONLY valid raw JSON matching this FontSpecifica
 
       const data = await res.json();
       const rawText = data.choices?.[0]?.message?.content || '';
-      const parsed = this.parseAndValidateSpecification(rawText, options);
+      const parsed = this.parseAndValidateSpecification(rawText, options, prompt);
       const inputTokens = data.usage?.prompt_tokens ?? null;
       const outputTokens = data.usage?.completion_tokens ?? null;
 
@@ -277,7 +278,7 @@ Given a font description, output ONLY valid raw JSON matching this FontSpecifica
 
       const data = await res.json();
       const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-      const parsed = this.parseAndValidateSpecification(rawText, options);
+      const parsed = this.parseAndValidateSpecification(rawText, options, prompt);
       const inputTokens = data.usageMetadata?.promptTokenCount ?? null;
       const outputTokens = data.usageMetadata?.candidatesTokenCount ?? null;
 
@@ -316,7 +317,7 @@ Given a font description, output ONLY valid raw JSON matching this FontSpecifica
 
       const data = await res.json();
       const rawText = data.choices?.[0]?.message?.content || '';
-      const parsed = this.parseAndValidateSpecification(rawText, options);
+      const parsed = this.parseAndValidateSpecification(rawText, options, prompt);
       const inputTokens = data.usage?.prompt_tokens ?? null;
       const outputTokens = data.usage?.completion_tokens ?? null;
 
@@ -354,7 +355,7 @@ Given a font description, output ONLY valid raw JSON matching this FontSpecifica
 
       const data = await res.json();
       const rawText = data.choices?.[0]?.message?.content || '';
-      const parsed = this.parseAndValidateSpecification(rawText, options);
+      const parsed = this.parseAndValidateSpecification(rawText, options, prompt);
       const inputTokens = data.usage?.prompt_tokens ?? null;
       const outputTokens = data.usage?.completion_tokens ?? null;
 
@@ -363,7 +364,7 @@ Given a font description, output ONLY valid raw JSON matching this FontSpecifica
 
     // Default synthesis fallback if API keys are unconfigured
     return {
-      result: this.parseAndValidateSpecification('{}', options),
+      result: this.parseAndValidateSpecification('{}', options, prompt),
       inputTokens: 150,
       outputTokens: 120,
     };
@@ -372,7 +373,7 @@ Given a font description, output ONLY valid raw JSON matching this FontSpecifica
   /**
    * Sanitizes and parses JSON response into a valid FontSpecification.
    */
-  private static parseAndValidateSpecification(text: string, options: AIGenerationOptions): FontSpecification {
+  private static parseAndValidateSpecification(text: string, options: AIGenerationOptions, promptText?: string): FontSpecification {
     let obj: Record<string, unknown> = {};
     try {
       let jsonText = text.trim();
@@ -407,6 +408,7 @@ Given a font description, output ONLY valid raw JSON matching this FontSpecifica
         letterSpacing: 0,
       },
       designDescription: String(obj.designDescription || 'Synthesized vector typeface specification.'),
+      prompt: promptText || options.prompt,
     };
   }
 

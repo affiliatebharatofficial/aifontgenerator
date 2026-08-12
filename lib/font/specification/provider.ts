@@ -102,6 +102,7 @@ export function validateSpecificationOutput(
       typeof raw.designDescription === 'string'
         ? raw.designDescription.substring(0, 300)
         : `Vector typeface synthesized from prompt: ${params.prompt.substring(0, 100)}`,
+    prompt: params.prompt,
   };
 }
 

@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import { Header } from '@/components/layout/Header';
+import { Footer } from '@/components/layout/Footer';
 import { getCurrentUserProfile } from '@/lib/auth/admin';
 import { redirect, notFound } from 'next/navigation';
 import { getFontVersionFamily } from '@/lib/generations/service';
@@ -34,12 +36,18 @@ export default async function VersionComparisonPage({
   }
 
   return (
-    <div className="min-h-screen bg-[#09090b] text-[#f4f4f5] p-6 sm:p-12 max-w-7xl mx-auto space-y-8">
-      <VersionComparisonView
-        currentGen={targetGen}
-        familyGenerations={familyGenerations}
-        filesMap={filesMap}
-      />
+    <div className="min-h-screen flex flex-col bg-[#09090b] text-[#f4f4f5]">
+      <Header />
+
+      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full">
+        <VersionComparisonView
+          currentGen={targetGen}
+          familyGenerations={familyGenerations}
+          filesMap={filesMap}
+        />
+      </main>
+
+      <Footer />
     </div>
   );
 }
