@@ -32,12 +32,27 @@ export class FontStorageService {
       const storagePath = `${userId}/${generationId}/font.${item.ext}`;
 
       // Upload binary buffer to Supabase Storage
-      const { error: uploadError } = await supabase.storage
+      let { error: uploadError } = await supabase.storage
         .from(bucketName)
         .upload(storagePath, item.buffer, {
           contentType: item.mime,
           upsert: true,
         });
+
+      if (uploadError && (uploadError.message.includes('Bucket not found') || uploadError.message.includes('NoSuchBucket'))) {
+        try {
+          await supabase.storage.createBucket(bucketName, { public: true });
+          const { error: retryErr } = await supabase.storage
+            .from(bucketName)
+            .upload(storagePath, item.buffer, {
+              contentType: item.mime,
+              upsert: true,
+            });
+          uploadError = retryErr;
+        } catch {
+          // Ignore bucket creation error if handled via SQL
+        }
+      }
 
       if (uploadError) {
         console.warn(`Supabase Storage upload warning for ${item.ext}:`, uploadError.message);
