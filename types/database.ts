@@ -22,6 +22,7 @@ export type FontCategory =
   | 'Decorative'
   | 'Pixel'
   | 'Blackletter'
+  | 'Devanagari'
   | 'Other';
 
 export type FontWeight =
@@ -59,6 +60,7 @@ export interface CharacterSetConfig {
   lowercase: boolean;
   numbers: boolean;
   punctuation: boolean;
+  devanagari?: boolean;
 }
 
 export interface AdvancedSettingsConfig {

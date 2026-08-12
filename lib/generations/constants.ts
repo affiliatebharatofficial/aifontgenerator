@@ -21,6 +21,7 @@ export const FONT_CATEGORIES: FontCategory[] = [
   'Decorative',
   'Pixel',
   'Blackletter',
+  'Devanagari',
   'Other',
 ];
 
@@ -62,6 +63,7 @@ export const DEFAULT_CHARACTER_SET: CharacterSetConfig = {
   lowercase: true,
   numbers: true,
   punctuation: true,
+  devanagari: false,
 };
 
 export const DEFAULT_ADVANCED_SETTINGS: AdvancedSettingsConfig = {

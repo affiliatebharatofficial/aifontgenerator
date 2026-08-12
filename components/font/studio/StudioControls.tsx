@@ -45,6 +45,14 @@ export const PRESET_TEXTS = [
     text: 'Create Something Beautiful',
   },
   {
+    label: 'Hindi / देवनागरी',
+    text: 'नमस्ते भारत! यह एक एआई जनरेटेड सुंदर हिंदी फॉन्ट है।\nक ख ग घ ङ च छ ज झ ञ\nट ठ ड ढ ण त थ द ध न\nप फ ब भ म य र ल व श ष स ह\nअ आ इ ई उ ऊ ऋ ए ऐ ओ औ',
+  },
+  {
+    label: 'Hindi Pangram',
+    text: 'ऋषियों को सताने वाले दुष्ट राक्षसों के संहारक श्री राम हैं।',
+  },
+  {
     label: 'Paragraph',
     text: 'Typography changes how words feel, how information is read, and how a visual identity is remembered.',
   },

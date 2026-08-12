@@ -48,6 +48,14 @@ export async function createGenerationAction(formData: FormData): Promise<Create
   const lowercase = formData.get('char_lowercase') === 'on';
   const numbers = formData.get('char_numbers') === 'on';
   const punctuation = formData.get('char_punctuation') === 'on';
+  const devanagari =
+    formData.get('char_devanagari') === 'on' ||
+    category === 'Devanagari' ||
+    prompt.toLowerCase().includes('hindi') ||
+    prompt.toLowerCase().includes('devanagari') ||
+    prompt.toLowerCase().includes('sanskrit') ||
+    prompt.includes('हिंदी') ||
+    prompt.includes('देवनागरी');
 
   const letterSpacing = parseInt((formData.get('letterSpacing') as string) || '0', 10);
   const contrast = (formData.get('contrast') as 'low' | 'medium' | 'high') || 'medium';
@@ -101,6 +109,7 @@ export async function createGenerationAction(formData: FormData): Promise<Create
     lowercase,
     numbers,
     punctuation,
+    devanagari,
   };
 
   const advancedSettings: AdvancedSettingsConfig = {

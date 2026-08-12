@@ -59,6 +59,7 @@ export default async function GeneratePage({
     'Decorative',
     'Pixel',
     'Blackletter',
+    'Devanagari',
     'Other',
   ];
 

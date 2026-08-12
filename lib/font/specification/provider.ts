@@ -81,6 +81,21 @@ export function validateSpecificationOutput(
     stemWidth = Math.round(raw.stemWidth);
   }
 
+  const textLower = `${params.prompt} ${params.category} ${params.style}`.toLowerCase();
+  const isDevanagariPrompt =
+    params.characterSet.devanagari ||
+    params.category === 'Devanagari' ||
+    textLower.includes('devanagari') ||
+    textLower.includes('hindi') ||
+    textLower.includes('sanskrit') ||
+    textLower.includes('हिंदी') ||
+    textLower.includes('देवनागरी');
+
+  const charSet: CharacterSetConfig = {
+    ...params.characterSet,
+    devanagari: isDevanagariPrompt,
+  };
+
   return {
     fontName: name.replace(/[^a-zA-Z0-9\s_-]/g, ''),
     category: params.category,
@@ -96,7 +111,7 @@ export function validateSpecificationOutput(
     cornerStyle: params.advancedSettings.cornerStyle,
     contrast: params.advancedSettings.contrast,
     strokeStyle: params.advancedSettings.strokeStyle,
-    characterSet: params.characterSet,
+    characterSet: charSet,
     advancedSettings: params.advancedSettings,
     designDescription:
       typeof raw.designDescription === 'string'

@@ -87,6 +87,7 @@ export function GeneratorForm({
     if (characterSet.lowercase) formData.append('char_lowercase', 'on');
     if (characterSet.numbers) formData.append('char_numbers', 'on');
     if (characterSet.punctuation) formData.append('char_punctuation', 'on');
+    if (characterSet.devanagari || category === 'Devanagari') formData.append('char_devanagari', 'on');
 
     formData.append('letterSpacing', advancedSettings.letterSpacing.toString());
     formData.append('contrast', advancedSettings.contrast);
@@ -268,6 +269,16 @@ export function GeneratorForm({
                     className="accent-[#e05638]"
                   />
                   <span>Symbols</span>
+                </label>
+
+                <label className="flex items-center gap-2 cursor-pointer text-[#a1a1aa] hover:text-[#f4f4f5] col-span-2">
+                  <input
+                    type="checkbox"
+                    checked={characterSet.devanagari || category === 'Devanagari'}
+                    onChange={(e) => setCharacterSet({ ...characterSet, devanagari: e.target.checked })}
+                    className="accent-[#e05638]"
+                  />
+                  <span className="font-semibold text-amber-400">Hindi / Devanagari (क, ख, ग)</span>
                 </label>
               </div>
             </div>
