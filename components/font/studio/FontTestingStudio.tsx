@@ -294,6 +294,7 @@ export function FontTestingStudio({ generation, files }: FontTestingStudioProps)
                 settings={settings}
                 onChange={setSettings}
                 onOpenFullscreen={() => setIsFullscreen(true)}
+                isLoaded={fontStatus === 'loaded'}
               />
             </div>
 

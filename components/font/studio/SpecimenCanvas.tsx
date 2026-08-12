@@ -18,6 +18,7 @@ interface SpecimenCanvasProps {
   settings: StudioPreviewSettings;
   onChange: (updater: (prev: StudioPreviewSettings) => StudioPreviewSettings) => void;
   onOpenFullscreen: () => void;
+  isLoaded?: boolean;
 }
 
 export function SpecimenCanvas({
@@ -25,6 +26,7 @@ export function SpecimenCanvas({
   settings,
   onChange,
   onOpenFullscreen,
+  isLoaded = true,
 }: SpecimenCanvasProps) {
   const [copied, setCopied] = useState(false);
 
@@ -154,7 +156,7 @@ export function SpecimenCanvas({
           </div>
 
           {/* Interactive Textarea Workspace */}
-          <div>
+          <div className={`transition-opacity duration-300 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}>
             <textarea
               rows={4}
               value={settings.customText}
@@ -164,6 +166,12 @@ export function SpecimenCanvas({
               className="w-full bg-transparent outline-none resize-none border-none leading-none p-0 overflow-hidden font-specimen focus:ring-0"
             />
           </div>
+
+          {!isLoaded && (
+            <div className="py-12 text-center text-xs font-mono text-[#a1a1aa] animate-pulse">
+              Initializing typeface binary in workspace...
+            </div>
+          )}
 
           {/* Editorial Specimen Sections */}
           <div className="border-t border-current/10 pt-10 space-y-10">
