@@ -23,7 +23,9 @@ import {
   type VisualComplexity,
   type FontProportions,
   type FontStyleDNA,
+  type PromptDesignModifiers,
 } from './dna';
+
 
 /**
  * Bounds & Defaults Constraints
@@ -236,6 +238,15 @@ export function validateFontStyleDNA(
     proportions.ascender = Math.min(0.95, proportions.capHeight + 0.08);
   }
 
+  // 4. Modifiers & Active Tags
+  const modifiers = obj.modifiers && typeof obj.modifiers === 'object'
+    ? (obj.modifiers as PromptDesignModifiers)
+    : undefined;
+
+  const activeModifiers = Array.isArray(obj.activeModifiers)
+    ? (obj.activeModifiers.filter((item) => typeof item === 'string') as string[])
+    : undefined;
+
   const designIntent =
     typeof obj.designIntent === 'string' && obj.designIntent.trim().length > 0
       ? obj.designIntent.trim().substring(0, 300)
@@ -263,8 +274,11 @@ export function validateFontStyleDNA(
     symmetry,
     slant,
     proportions,
+    modifiers,
+    activeModifiers,
     unitsPerEm: 1000,
     designIntent,
     generatedVia,
   };
 }
+

@@ -13,6 +13,7 @@ import {
   type FontStyleDNA,
 } from './dna';
 import { validateFontStyleDNA, createDefaultStyleDNA } from './dnaValidator';
+import { PromptIntelligenceEngine } from './promptIntelligence';
 import type {
   FontStyleSpecification,
   FontSpecification,
@@ -53,6 +54,7 @@ export class FontTypographyDirector {
   public static buildDirectorSystemPrompt(): string {
     return `You are a world-class AI Typography Director and Master Font Engineer.
 Analyze the user's typeface request and synthesize a structured, cohesive FontStyleDNA JSON object.
+You must extract both the high-level style family and any fine-grained design modifiers (width, height, weight, terminals, corners, strokes, counters, baseline, spacing, slant).
 
 Allowed Enum Values:
 - styleFamily: ${JSON.stringify(STYLE_FAMILIES)}
@@ -110,6 +112,14 @@ Return ONLY a valid raw JSON object matching this schema:
     "ascender": 0.80,
     "descender": -0.20
   },
+  "modifiers": {
+    "width": "NARROW | WIDE | NORMAL",
+    "height": "TALL | SHORT | NORMAL",
+    "terminals": "DRIPPING | FANG | ROUND | FLAT | WEDGE | HAIRLINE",
+    "corners": "SHARP | ROUND | CHAMFERED | CRACKED",
+    "baseline": "BOUNCY | IRREGULAR | FLAT | HANDWRITTEN"
+  },
+  "activeModifiers": ["NARROW", "DRIPPING"],
   "designIntent": "Brief 1-2 sentence description of typography styling decisions"
 }
 
@@ -139,9 +149,10 @@ Do NOT wrap in markdown blocks. Output raw JSON only.`;
       });
 
       const validatedDNA = validateFontStyleDNA(aiResult.rawJson, prompt, 'ai_director');
+      const mergedDNA = PromptIntelligenceEngine.mergeAIDNAWithPromptModifiers(validatedDNA, prompt);
 
       return {
-        dna: validatedDNA,
+        dna: mergedDNA,
         providerUsed: aiResult.providerUsed,
         modelUsed: aiResult.modelUsed,
         fallbackUsed: false,
@@ -168,6 +179,7 @@ Do NOT wrap in markdown blocks. Output raw JSON only.`;
     }
   }
 
+
   /**
    * Resilient, rule-based typographic DNA synthesizer.
    * Used when AI providers are unavailable or fail validation.
@@ -179,6 +191,7 @@ Do NOT wrap in markdown blocks. Output raw JSON only.`;
     width?: string,
     style?: string
   ): FontStyleDNA {
+    const analysis = PromptIntelligenceEngine.analyzePrompt(prompt, category);
     const text = `${prompt} ${category || ''} ${style || ''}`.toLowerCase();
 
     // Default metrics derived from weight & width
@@ -194,12 +207,15 @@ Do NOT wrap in markdown blocks. Output raw JSON only.`;
     if (width === 'Condensed' || width === 'Semi Condensed') widthScale = 0.82;
     else if (width === 'Expanded' || width === 'Semi Expanded') widthScale = 1.22;
 
-    const baseDNA = createDefaultStyleDNA('GEOMETRIC', `Fallback synthesis for: "${prompt}"`);
+    const baseDNA = createDefaultStyleDNA(analysis.baseFamily, `Fallback synthesis for: "${prompt}"`);
     baseDNA.strokeWidth = strokeWidth;
     baseDNA.proportions.width = widthScale;
 
+    let familyDNA = baseDNA;
+
     // 1. MONOSPACE / TERMINAL / CODE
     if (
+      analysis.baseFamily === 'MONOSPACE' ||
       category === 'Monospace' ||
       text.includes('monospace') ||
       text.includes('fixed-width') ||
@@ -207,7 +223,7 @@ Do NOT wrap in markdown blocks. Output raw JSON only.`;
       text.includes('code font') ||
       text.includes('programming font')
     ) {
-      return {
+      familyDNA = {
         ...baseDNA,
         styleFamily: 'MONOSPACE',
         strokeModel: 'MONOLINE',
@@ -230,9 +246,10 @@ Do NOT wrap in markdown blocks. Output raw JSON only.`;
         designIntent: 'Uniform fixed-pitch typographic proportions designed for technical precision.',
       };
     }
-
     // 2. HORROR / OCCULT / SPOOKY / CREEPY
-    if (
+    else if (
+      analysis.baseFamily === 'HORROR' ||
+      analysis.baseFamily === 'OCCULT' ||
       text.includes('horror') ||
       text.includes('scary') ||
       text.includes('creepy') ||
@@ -246,9 +263,9 @@ Do NOT wrap in markdown blocks. Output raw JSON only.`;
       text.includes('dark') ||
       text.includes('occult')
     ) {
-      return {
+      familyDNA = {
         ...baseDNA,
-        styleFamily: text.includes('occult') ? 'OCCULT' : 'HORROR',
+        styleFamily: text.includes('occult') || analysis.baseFamily === 'OCCULT' ? 'OCCULT' : 'HORROR',
         strokeModel: 'MODULATED',
         terminalStyle: 'SHARP',
         cornerStyle: 'IRREGULAR',
@@ -269,9 +286,10 @@ Do NOT wrap in markdown blocks. Output raw JSON only.`;
         designIntent: 'Aggressive, sharp chiseled letterforms with distressed irregular contours.',
       };
     }
-
     // 3. BUBBLE / CARTOON / BALLOON / PUFFY
-    if (
+    else if (
+      analysis.baseFamily === 'BUBBLE' ||
+      analysis.baseFamily === 'CARTOON' ||
       text.includes('bubble') ||
       text.includes('balloon') ||
       text.includes('inflated') ||
@@ -281,9 +299,9 @@ Do NOT wrap in markdown blocks. Output raw JSON only.`;
       text.includes('comic') ||
       (/\bsoft\b/i.test(text) && !text.includes('software'))
     ) {
-      return {
+      familyDNA = {
         ...baseDNA,
-        styleFamily: text.includes('cartoon') || text.includes('comic') ? 'CARTOON' : 'BUBBLE',
+        styleFamily: text.includes('cartoon') || text.includes('comic') || analysis.baseFamily === 'CARTOON' ? 'CARTOON' : 'BUBBLE',
         strokeModel: 'MONOLINE',
         terminalStyle: 'ROUND',
         cornerStyle: 'ROUND',
@@ -308,10 +326,11 @@ Do NOT wrap in markdown blocks. Output raw JSON only.`;
         designIntent: 'Heavily rounded, inflated cushion letterforms with soft circular terminals.',
       };
     }
-
-
-    // 3. LUXURY SERIF / DIDONE / EDITORIAL / ELEGANT
-    if (
+    // 4. LUXURY SERIF / DIDONE / EDITORIAL / ELEGANT
+    else if (
+      analysis.baseFamily === 'DIDONE_SERIF' ||
+      analysis.baseFamily === 'SERIF' ||
+      analysis.baseFamily === 'SLAB_SERIF' ||
       text.includes('luxury') ||
       text.includes('editorial') ||
       text.includes('fashion') ||
@@ -321,10 +340,10 @@ Do NOT wrap in markdown blocks. Output raw JSON only.`;
       text.includes('elegant') ||
       (category && category.toLowerCase().includes('serif') && !category.toLowerCase().includes('sans'))
     ) {
-      const isSlab = text.includes('slab') || text.includes('rockwell');
-      return {
+      const isSlab = text.includes('slab') || text.includes('rockwell') || analysis.baseFamily === 'SLAB_SERIF';
+      familyDNA = {
         ...baseDNA,
-        styleFamily: isSlab ? 'SLAB_SERIF' : text.includes('luxury') || text.includes('didot') ? 'DIDONE_SERIF' : 'SERIF',
+        styleFamily: isSlab ? 'SLAB_SERIF' : text.includes('luxury') || text.includes('didot') || analysis.baseFamily === 'DIDONE_SERIF' ? 'DIDONE_SERIF' : 'SERIF',
         strokeModel: isSlab ? 'MONOLINE' : 'HIGH_CONTRAST',
         terminalStyle: 'SERIFED',
         cornerStyle: 'SHARP',
@@ -345,9 +364,9 @@ Do NOT wrap in markdown blocks. Output raw JSON only.`;
         designIntent: 'Refined high-contrast luxury serif with razor hairlines and structured bracket serifs.',
       };
     }
-
-    // 4. FUTURISTIC / TECHNO / SCI-FI / CYBERPUNK / GAMING
-    if (
+    // 5. FUTURISTIC / TECHNO / SCI-FI / CYBERPUNK / GAMING
+    else if (
+      analysis.baseFamily === 'FUTURISTIC' ||
       text.includes('futuristic') ||
       text.includes('cyber') ||
       text.includes('techno') ||
@@ -357,7 +376,7 @@ Do NOT wrap in markdown blocks. Output raw JSON only.`;
       text.includes('robot') ||
       text.includes('angular')
     ) {
-      return {
+      familyDNA = {
         ...baseDNA,
         styleFamily: 'FUTURISTIC',
         strokeModel: 'CONSTRUCTED',
@@ -384,9 +403,11 @@ Do NOT wrap in markdown blocks. Output raw JSON only.`;
         designIntent: 'Modular 45-degree chamfered techno glyphs with angular octagonal counters.',
       };
     }
-
-    // 5. HANDWRITTEN / BRUSH / SCRIPT / SIGNATURE / CALLIGRAPHY
-    if (
+    // 6. HANDWRITTEN / BRUSH / SCRIPT / SIGNATURE / CALLIGRAPHY
+    else if (
+      analysis.baseFamily === 'HANDWRITTEN' ||
+      analysis.baseFamily === 'BRUSH' ||
+      analysis.baseFamily === 'SCRIPT' ||
       text.includes('handwritten') ||
       text.includes('brush') ||
       text.includes('cursive') ||
@@ -397,9 +418,9 @@ Do NOT wrap in markdown blocks. Output raw JSON only.`;
       category === 'Handwritten' ||
       category === 'Script'
     ) {
-      const isBrush = text.includes('brush') || text.includes('paint');
-      const isScript = text.includes('script') || text.includes('cursive');
-      return {
+      const isBrush = text.includes('brush') || text.includes('paint') || analysis.baseFamily === 'BRUSH';
+      const isScript = text.includes('script') || text.includes('cursive') || analysis.baseFamily === 'SCRIPT';
+      familyDNA = {
         ...baseDNA,
         styleFamily: isBrush ? 'BRUSH' : isScript ? 'SCRIPT' : 'HANDWRITTEN',
         strokeModel: isBrush ? 'BRUSH' : 'CALLIGRAPHIC',
@@ -422,16 +443,17 @@ Do NOT wrap in markdown blocks. Output raw JSON only.`;
         designIntent: 'Organic calligraphic stroke modulation with natural dancing baseline rhythms.',
       };
     }
-
-    // 6. GOTHIC / BLACKLETTER / MEDIEVAL / FRAKTUR
-    if (
+    // 7. GOTHIC / BLACKLETTER / MEDIEVAL / FRAKTUR
+    else if (
+      analysis.baseFamily === 'GOTHIC' ||
+      analysis.baseFamily === 'BLACKLETTER' ||
       text.includes('gothic') ||
       text.includes('blackletter') ||
       text.includes('medieval') ||
       text.includes('fraktur') ||
       category === 'Blackletter'
     ) {
-      return {
+      familyDNA = {
         ...baseDNA,
         styleFamily: 'BLACKLETTER',
         strokeModel: 'CALLIGRAPHIC',
@@ -454,9 +476,10 @@ Do NOT wrap in markdown blocks. Output raw JSON only.`;
         designIntent: 'Dramatic medieval blackletter with fractured diamond terminals and dense vertical rhythm.',
       };
     }
-
-    // 7. RETRO / PSYCHEDELIC / 70S / GROOVY
-    if (
+    // 8. RETRO / PSYCHEDELIC / 70S / GROOVY
+    else if (
+      analysis.baseFamily === 'RETRO' ||
+      analysis.baseFamily === 'PSYCHEDELIC' ||
       text.includes('retro') ||
       text.includes('psychedelic') ||
       text.includes('70s') ||
@@ -464,9 +487,9 @@ Do NOT wrap in markdown blocks. Output raw JSON only.`;
       text.includes('disco') ||
       text.includes('vintage')
     ) {
-      return {
+      familyDNA = {
         ...baseDNA,
-        styleFamily: text.includes('psychedelic') || text.includes('groovy') ? 'PSYCHEDELIC' : 'RETRO',
+        styleFamily: text.includes('psychedelic') || text.includes('groovy') || analysis.baseFamily === 'PSYCHEDELIC' ? 'PSYCHEDELIC' : 'RETRO',
         strokeModel: 'HIGH_CONTRAST',
         terminalStyle: 'ROUND',
         cornerStyle: 'ROUND',
@@ -487,36 +510,16 @@ Do NOT wrap in markdown blocks. Output raw JSON only.`;
         designIntent: 'High-energy 1970s psychedelic typeface with bulbous flourishes and organic curves.',
       };
     }
-
-    // 8. MONOSPACE / CODE
-    if (category === 'Monospace' || text.includes('mono') || text.includes('code')) {
-      return {
-        ...baseDNA,
-        styleFamily: 'MONOSPACE',
-        strokeModel: 'MONOLINE',
-        terminalStyle: 'FLAT',
-        cornerStyle: 'SHARP',
-        curveModel: 'GEOMETRIC',
-        counterStyle: 'ROUND',
-        baselineBehavior: 'STABLE',
-        spacing: 'DISPLAY',
-        decorationLevel: 'NONE',
-        glyphVariation: 'NONE',
-        visualComplexity: 'MINIMAL',
-        strokeWidth: strokeWidth,
-        strokeContrast: 0.05,
-        roundness: 0.20,
-        angularity: 0.40,
-        distortion: 0.00,
-        symmetry: 0.95,
-        slant: 0.00,
-        designIntent: 'Uniform fixed-pitch typographic proportions designed for technical precision.',
-      };
-    }
-
     // 9. DISPLAY / DECORATIVE
-    if (category === 'Display' || category === 'Decorative' || text.includes('display') || text.includes('poster')) {
-      return {
+    else if (
+      analysis.baseFamily === 'DISPLAY' ||
+      analysis.baseFamily === 'DECORATIVE' ||
+      category === 'Display' ||
+      category === 'Decorative' ||
+      text.includes('display') ||
+      text.includes('poster')
+    ) {
+      familyDNA = {
         ...baseDNA,
         styleFamily: category === 'Decorative' ? 'DECORATIVE' : 'DISPLAY',
         strokeModel: 'MODULATED',
@@ -540,9 +543,10 @@ Do NOT wrap in markdown blocks. Output raw JSON only.`;
       };
     }
 
-    // Default: Clean Geometric / Modern Sans
-    return baseDNA;
+    // Now apply fine-grained modifiers extracted from the prompt
+    return PromptIntelligenceEngine.applyModifiersToDNA(familyDNA, analysis.modifiers, analysis.activeModifiers);
   }
+
 
   /**
    * Bridges new FontStyleDNA into legacy FontStyleSpecification and FontSpecification metrics.

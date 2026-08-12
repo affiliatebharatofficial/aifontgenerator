@@ -145,6 +145,43 @@ export interface FontProportions {
 }
 
 /**
+ * Detailed Prompt Design Modifiers
+ */
+export type WidthModifier = 'ULTRA_CONDENSED' | 'CONDENSED' | 'NARROW' | 'NORMAL' | 'WIDE' | 'EXPANDED' | 'ULTRA_EXPANDED';
+export type HeightModifier = 'VERY_SHORT' | 'SHORT' | 'NORMAL' | 'TALL' | 'ELONGATED';
+export type WeightModifier = 'HAIRLINE' | 'THIN' | 'LIGHT' | 'REGULAR' | 'MEDIUM' | 'BOLD' | 'EXTRA_BOLD' | 'BLACK';
+export type TerminalModifier = 'STANDARD' | 'DRIPPING' | 'FANG' | 'CLAW' | 'MELTING' | 'SPUR' | 'SHARP' | 'ROUND' | 'FLAT' | 'WEDGE' | 'TAPERED' | 'FLARED' | 'CUT' | 'HAIRLINE' | 'SERIFED';
+export type CornerModifier = 'STANDARD' | 'SHARP' | 'CHAMFERED' | 'ROUND' | 'SOFT' | 'CRACKED' | 'IRREGULAR';
+export type StrokeModifier = 'STANDARD' | 'CRACKED' | 'SCRATCHED' | 'HOLLOW' | 'OUTLINE' | 'DOUBLE_LINE' | 'CALLIGRAPHIC' | 'ORGANIC';
+export type CounterModifier = 'STANDARD' | 'OPEN' | 'CLOSED' | 'TIGHT' | 'AIRY' | 'EXPANDED' | 'COMPRESSED';
+export type BaselineModifier = 'STANDARD' | 'FLAT' | 'BOUNCY' | 'WAVY' | 'IRREGULAR' | 'HANDWRITTEN';
+
+
+export interface PromptDesignModifiers {
+  width?: WidthModifier;
+  height?: HeightModifier;
+  weight?: WeightModifier;
+  terminals?: TerminalModifier;
+  corners?: CornerModifier;
+  strokes?: StrokeModifier;
+  counters?: CounterModifier;
+  baseline?: BaselineModifier;
+  contrast?: 'LOW' | 'NORMAL' | 'HIGH' | 'EXTREME';
+  roundness?: 'VERY_LOW' | 'LOW' | 'MEDIUM' | 'HIGH' | 'VERY_HIGH';
+  angularity?: 'VERY_LOW' | 'LOW' | 'MEDIUM' | 'HIGH' | 'VERY_HIGH';
+  distortion?: 'NONE' | 'SUBTLE' | 'MODERATE' | 'HEAVY' | 'EXTREME';
+  spacing?: 'TIGHT' | 'NORMAL' | 'WIDE' | 'EXPANDED';
+  slant?: 'NONE' | 'SLIGHT_ITALIC' | 'ITALIC' | 'EXTREME_ITALIC' | 'REVERSE';
+  // Quantitative modifier intensity factors [0.0, 1.0]
+  terminalStrength?: number;
+  distortionStrength?: number;
+  widthScaleOverride?: number;
+  heightScaleOverride?: number;
+  strokeWeightOverride?: number;
+  contrastOverride?: number;
+}
+
+/**
  * Complete Validated Font Style DNA
  */
 export interface FontStyleDNA {
@@ -189,6 +226,12 @@ export interface FontStyleDNA {
   /** Normalized vertical and horizontal proportions */
   proportions: FontProportions;
 
+  /** Fine-grained design intent modifiers */
+  modifiers?: PromptDesignModifiers;
+
+  /** List of human-readable active modifier tokens (e.g. ['NARROW', 'TALL', 'DRIPPING']) */
+  activeModifiers?: string[];
+
   /** Em square coordinate resolution (standard 1000) */
   unitsPerEm: number;
 
@@ -198,3 +241,4 @@ export interface FontStyleDNA {
   /** Source tracking: synthesized via AI or rule-based fallback */
   generatedVia: 'ai_director' | 'fallback_rule';
 }
+

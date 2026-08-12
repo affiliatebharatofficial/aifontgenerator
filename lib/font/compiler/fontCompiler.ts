@@ -32,14 +32,27 @@ export class FontCompilerService {
     const styleName = (spec.weight || 'Regular').replace(/[^a-zA-Z0-9\s_-]/g, '');
 
     // 2. Build opentype.Font instance with clean PostScript metadata
+    const unitsPerEm = spec.unitsPerEm || spec.styleDNA?.unitsPerEm || 1000;
+    const ascender = spec.ascender !== undefined
+      ? spec.ascender
+      : spec.styleDNA?.proportions
+      ? Math.round(spec.styleDNA.proportions.ascender * unitsPerEm)
+      : 800;
+    const descender = spec.descender !== undefined
+      ? spec.descender
+      : spec.styleDNA?.proportions
+      ? Math.round(spec.styleDNA.proportions.descender * unitsPerEm)
+      : -200;
+
     const font = new Font({
       familyName,
       styleName,
-      unitsPerEm: spec.unitsPerEm || 1000,
-      ascender: spec.ascender,
-      descender: spec.descender,
+      unitsPerEm,
+      ascender,
+      descender,
       glyphs,
     });
+
 
     const styleFamily = spec.styleDNA?.styleFamily || 'GENERAL';
     const fontNames = font.names as unknown as Record<string, Record<string, { en: string }>>;

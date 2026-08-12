@@ -33,6 +33,13 @@ export class GlyphGeometryContext {
   public seed: number;
   public overshoot: number;
 
+  // Prompt Intelligence Modifiers
+  public terminalModifier: string;
+  public terminalStrength: number;
+  public cornerModifier: string;
+  public strokeModifier: string;
+  public counterModifier: string;
+
   constructor(spec: FontSpecification, customSeed?: number) {
     this.spec = spec;
     this.dna = spec.styleDNA
@@ -59,6 +66,13 @@ export class GlyphGeometryContext {
     this.angularity = this.dna.angularity;
     this.distortion = this.dna.distortion;
     this.symmetry = this.dna.symmetry;
+
+    // Modifiers from prompt intelligence
+    this.terminalModifier = this.dna.modifiers?.terminals || (this.dna.terminalStyle === 'SHARP' ? 'FANG' : 'STANDARD');
+    this.terminalStrength = this.dna.modifiers?.terminalStrength || 0.75;
+    this.cornerModifier = this.dna.modifiers?.corners || (this.dna.cornerStyle === 'CHAMFERED' ? 'CHAMFERED' : 'STANDARD');
+    this.strokeModifier = this.dna.modifiers?.strokes || 'STANDARD';
+    this.counterModifier = this.dna.modifiers?.counters || (this.dna.counterStyle === 'OPEN' ? 'OPEN' : 'STANDARD');
 
     // Typographic Overshoot for curved crowns and bowls (1000 UPM grid)
     // Angular/Chamfered techno styles do not overshoot. Rounded styles overshoot by ~10-16 units.
@@ -96,7 +110,7 @@ export class GlyphGeometryContext {
   }
 
   /**
-   * Coordinate Transformer: Applies slant, baseline physics, and controlled distortion.
+   * Coordinate Transformer: Applies slant, baseline physics, controlled distortion, and cracked/scratched stroke modifiers.
    */
   public pt(x: number, y: number, glyphCode: number = 0, salt: number = 0): GlyphPoint {
     let curX = x;
@@ -119,7 +133,16 @@ export class GlyphGeometryContext {
       curY += this.seededRand(glyphCode, salt * 2 + 1) * maxJitterY;
     }
 
-    // 3. Geometric slant shear
+    // 3. Cracked stroke fracture / notch modulation
+    if (this.strokeModifier === 'CRACKED' || this.cornerModifier === 'CRACKED') {
+      const isFracturePt = Math.abs(this.seededRand(glyphCode, salt * 5 + 7)) > 0.65;
+      if (isFracturePt) {
+        const fractureOffset = this.seededRand(glyphCode, salt * 3 + 13) * 18;
+        curX += fractureOffset;
+      }
+    }
+
+    // 4. Geometric slant shear
     if (this.slantAngle !== 0) {
       curX += curY * Math.tan(this.slantAngle);
     }
@@ -129,6 +152,7 @@ export class GlyphGeometryContext {
       y: Math.round(curY),
     };
   }
+
 
   /**
    * Optical side bearings based on glyph geometry characteristics

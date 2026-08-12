@@ -29,9 +29,60 @@ export class StemPrimitive {
     const corner = ctx.dna.cornerStyle;
     const family = ctx.dna.styleFamily;
 
-    // 1. HORROR / OCCULT: Jagged fang spurs & chiseled irregular contours
-    if (family === 'HORROR' || family === 'OCCULT' || terminal === 'SHARP') {
-      const fangH = Math.round(w * 0.55);
+    // 1. DRIPPING / MELTING TERMINALS (Horror dripping, melting droplets)
+    if (ctx.terminalModifier === 'DRIPPING') {
+
+      const dripH = Math.round(w * 1.15 * ctx.terminalStrength);
+      const fangH = Math.round(w * 0.45);
+
+      const p1 = ctx.pt(x, options?.botTerminal ? y - dripH * 0.4 : y, glyphCode, 10);
+      const p2 = ctx.pt(x + w, y, glyphCode, 11);
+      const p3 = ctx.pt(x + w, options?.topTerminal ? y + h + fangH : y + h, glyphCode, 12);
+      const p4 = ctx.pt(x, y + h, glyphCode, 13);
+
+      path.moveTo(p1.x, p1.y);
+      path.lineTo(p2.x, p2.y);
+
+      if (ctx.strokeModifier === 'CRACKED' || ctx.cornerModifier === 'CRACKED') {
+        const fracY = y + Math.round(h * 0.45);
+        const fracDepth = Math.max(8, Math.round(w * 0.35));
+        const pFrac1 = ctx.pt(x + w, fracY - 12, glyphCode, 60);
+        const pFracTip = ctx.pt(x + w - fracDepth, fracY, glyphCode, 61);
+        const pFrac2 = ctx.pt(x + w, fracY + 12, glyphCode, 62);
+        path.lineTo(pFrac1.x, pFrac1.y);
+        path.lineTo(pFracTip.x, pFracTip.y);
+        path.lineTo(pFrac2.x, pFrac2.y);
+      }
+
+      path.lineTo(p3.x, p3.y);
+      path.lineTo(p4.x, p4.y);
+
+      if (ctx.strokeModifier === 'CRACKED' || ctx.cornerModifier === 'CRACKED') {
+        const fracY2 = y + Math.round(h * 0.68);
+        const fracDepth = Math.max(8, Math.round(w * 0.35));
+        const pFrac3 = ctx.pt(x, fracY2 + 10, glyphCode, 63);
+        const pFracTip2 = ctx.pt(x + fracDepth, fracY2, glyphCode, 64);
+        const pFrac4 = ctx.pt(x, fracY2 - 10, glyphCode, 65);
+        path.lineTo(pFrac3.x, pFrac3.y);
+        path.lineTo(pFracTip2.x, pFracTip2.y);
+        path.lineTo(pFrac4.x, pFrac4.y);
+      }
+
+      if (options?.botTerminal) {
+        const pDropTip = ctx.pt(x + w * 0.5, y - dripH, glyphCode, 14);
+        const pDropR = ctx.pt(x + w * 0.85, y - dripH * 0.55, glyphCode, 15);
+        const pDropL = ctx.pt(x + w * 0.15, y - dripH * 0.55, glyphCode, 16);
+        path.lineTo(p1.x, p1.y);
+        path.bezierCurveTo(pDropL.x, pDropL.y, pDropTip.x, pDropTip.y, pDropTip.x, pDropTip.y);
+        path.bezierCurveTo(pDropR.x, pDropR.y, p2.x, p2.y, p2.x, p2.y);
+      }
+      path.close();
+      return;
+    }
+
+    // 2. HORROR / OCCULT / FANG: Jagged fang spurs & chiseled irregular contours
+    if (family === 'HORROR' || family === 'OCCULT' || terminal === 'SHARP' || ctx.terminalModifier === 'FANG') {
+      const fangH = Math.round(w * 0.55 * ctx.terminalStrength);
       const p1 = ctx.pt(x, options?.botTerminal ? y - fangH : y, glyphCode, 10);
       const p2 = ctx.pt(x + w, y, glyphCode, 11);
       const p3 = ctx.pt(x + w, options?.topTerminal ? y + h + fangH : y + h, glyphCode, 12);
@@ -39,11 +90,37 @@ export class StemPrimitive {
 
       path.moveTo(p1.x, p1.y);
       path.lineTo(p2.x, p2.y);
+
+      if (ctx.strokeModifier === 'CRACKED' || ctx.cornerModifier === 'CRACKED') {
+        const fracY = y + Math.round(h * 0.45);
+        const fracDepth = Math.max(8, Math.round(w * 0.35));
+        const pFrac1 = ctx.pt(x + w, fracY - 12, glyphCode, 60);
+        const pFracTip = ctx.pt(x + w - fracDepth, fracY, glyphCode, 61);
+        const pFrac2 = ctx.pt(x + w, fracY + 12, glyphCode, 62);
+        path.lineTo(pFrac1.x, pFrac1.y);
+        path.lineTo(pFracTip.x, pFracTip.y);
+        path.lineTo(pFrac2.x, pFrac2.y);
+      }
+
       path.lineTo(p3.x, p3.y);
       path.lineTo(p4.x, p4.y);
+
+      if (ctx.strokeModifier === 'CRACKED' || ctx.cornerModifier === 'CRACKED') {
+        const fracY2 = y + Math.round(h * 0.68);
+        const fracDepth = Math.max(8, Math.round(w * 0.35));
+        const pFrac3 = ctx.pt(x, fracY2 + 10, glyphCode, 63);
+        const pFracTip2 = ctx.pt(x + fracDepth, fracY2, glyphCode, 64);
+        const pFrac4 = ctx.pt(x, fracY2 - 10, glyphCode, 65);
+        path.lineTo(pFrac3.x, pFrac3.y);
+        path.lineTo(pFracTip2.x, pFracTip2.y);
+        path.lineTo(pFrac4.x, pFrac4.y);
+      }
+
       path.close();
       return;
     }
+
+
 
     // 2. BUBBLE / CARTOON: Full pill rounded end caps (semicircular terminals)
     if (family === 'BUBBLE' || family === 'CARTOON' || terminal === 'ROUND') {

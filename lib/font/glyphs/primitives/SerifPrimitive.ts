@@ -29,10 +29,31 @@ export class SerifPrimitive {
       return;
     }
 
-    // 1. HORROR / OCCULT: Sharp Piercing Dagger Spurs
-    if (family === 'HORROR' || family === 'OCCULT' || terminal === 'SHARP') {
+    // 1. DRIPPING SPURS
+    if (ctx.terminalModifier === 'DRIPPING') {
+      const dripW = Math.round(stemW * 0.70);
+      const dripH = Math.round(stemW * 1.25 * ctx.terminalStrength);
+
+      if (pos === 'bot' || pos === 'both') {
+        const p1 = ctx.pt(x - dripW * 0.4, y, glyphCode, 90);
+        const p2 = ctx.pt(x + stemW + dripW * 0.4, y, glyphCode, 91);
+        const pDropTip = ctx.pt(x + stemW * 0.5, y - dripH, glyphCode, 92);
+        const pDropR = ctx.pt(x + stemW * 0.85, y - dripH * 0.6, glyphCode, 93);
+        const pDropL = ctx.pt(x + stemW * 0.15, y - dripH * 0.6, glyphCode, 94);
+
+        path.moveTo(p1.x, p1.y);
+        path.lineTo(p2.x, p2.y);
+        path.bezierCurveTo(pDropR.x, pDropR.y, pDropTip.x, pDropTip.y, pDropTip.x, pDropTip.y);
+        path.bezierCurveTo(pDropL.x, pDropL.y, p1.x, p1.y, p1.x, p1.y);
+        path.close();
+      }
+      return;
+    }
+
+    // 2. HORROR / OCCULT / FANG: Sharp Piercing Dagger Spurs
+    if (family === 'HORROR' || family === 'OCCULT' || terminal === 'SHARP' || ctx.terminalModifier === 'FANG') {
       const spikeW = Math.round(stemW * 0.65);
-      const spikeH = Math.round(stemW * 0.60);
+      const spikeH = Math.round(stemW * 0.60 * ctx.terminalStrength);
 
       if (pos === 'bot' || pos === 'both') {
         const p1 = ctx.pt(x - spikeW, y, glyphCode, 100);
@@ -57,6 +78,7 @@ export class SerifPrimitive {
       }
       return;
     }
+
 
     // 2. SLAB SERIF: Heavy rectangular slabs
     if (family === 'SLAB_SERIF') {
