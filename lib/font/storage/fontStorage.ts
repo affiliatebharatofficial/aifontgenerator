@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient, createClient } from '@/lib/supabase/server';
 import type { CompiledFontBuffers } from '../compiler/fontCompiler';
 
 export interface UploadResult {
@@ -17,7 +17,7 @@ export class FontStorageService {
     generationId: string,
     buffers: CompiledFontBuffers
   ): Promise<UploadResult[]> {
-    const supabase = await createClient();
+    const supabase = await createAdminClient();
     const bucketName = 'fonts';
 
     const formats: Array<{ ext: 'ttf' | 'otf' | 'woff2'; buffer: Buffer; mime: string }> = [

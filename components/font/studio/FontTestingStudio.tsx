@@ -82,35 +82,56 @@ export function FontTestingStudio({ generation, files }: FontTestingStudioProps)
   const [selectedGlyph, setSelectedGlyph] = useState<ExtractedGlyph | null>(null);
   const [mobileControlsOpen, setMobileControlsOpen] = useState(false);
 
-  // 1. Browser Font Face Loading (WOFF2)
+  // 1. Browser Font Face Loading with automatic WOFF2 -> TTF fallback & ArrayBuffer direct registration
   useEffect(() => {
     let isMounted = true;
-    const fontFace = new FontFace(fontFamilyName, `url("${fontUrl}") format("woff2")`);
+    let registeredFace: FontFace | null = null;
 
-    fontFace
-      .load()
-      .then((loadedFace) => {
+    async function loadFont() {
+      try {
+        // Try WOFF2 fetch first
+        let response = await fetch(fontUrl);
+        if (!response.ok) {
+          // Fallback to TTF fetch
+          response = await fetch(ttfUrl);
+        }
+
+        if (!response.ok) {
+          throw new Error(`Font fetch failed with status: ${response.status}`);
+        }
+
+        const buffer = await response.arrayBuffer();
+        if (!isMounted) return;
+
+        const face = new FontFace(fontFamilyName, buffer);
+        const loadedFace = await face.load();
+
         if (isMounted) {
           document.fonts.add(loadedFace);
+          registeredFace = loadedFace;
           setFontStatus('loaded');
         }
-      })
-      .catch((err) => {
-        console.error('Failed to load generated WOFF2 font:', err);
+      } catch (err) {
+        console.error('Failed to load font into browser:', err);
         if (isMounted) {
           setFontStatus('failed');
         }
-      });
+      }
+    }
+
+    loadFont();
 
     return () => {
       isMounted = false;
-      try {
-        document.fonts.delete(fontFace);
-      } catch {
-        // Ignore delete errors on unmount
+      if (registeredFace) {
+        try {
+          document.fonts.delete(registeredFace);
+        } catch {
+          // Ignore delete errors on unmount
+        }
       }
     };
-  }, [fontFamilyName, fontUrl]);
+  }, [fontFamilyName, fontUrl, ttfUrl]);
 
   // 2. Client-side TTF Binary Parsing via opentype.js
   useEffect(() => {
