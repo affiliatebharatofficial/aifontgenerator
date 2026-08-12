@@ -23,9 +23,11 @@ export async function trackAnalyticsEvent(input: AnalyticsEventInput): Promise<v
       resolvedUserId = user?.id || null;
     }
 
-    await (supabase.from as unknown as (relation: string) => {
+    const boundFrom = supabase.from.bind(supabase) as unknown as (relation: string) => {
       insert: (data: Record<string, unknown>) => Promise<unknown>;
-    })('analytics_events').insert({
+    };
+
+    await boundFrom('analytics_events').insert({
       user_id: resolvedUserId,
       event_name: input.eventName,
       entity_type: input.entityType || null,

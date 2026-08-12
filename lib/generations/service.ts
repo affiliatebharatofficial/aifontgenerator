@@ -76,12 +76,12 @@ export async function createGenerationJob(input: CreateGenerationInput): Promise
   }
 
   // 1. Atomic Quota Check & Increment
-  const rpcFunc = supabase.rpc as unknown as (
+  const boundRpc = supabase.rpc.bind(supabase) as unknown as (
     fn: string,
     args: Record<string, unknown>
   ) => Promise<{ data: Array<{ success: boolean; current_count: number; is_limit_reached: boolean }> | null; error: { message: string } | null }>;
 
-  const { data: rpcRes, error: rpcError } = await rpcFunc('increment_daily_usage', {
+  const { data: rpcRes, error: rpcError } = await boundRpc('increment_daily_usage', {
     p_user_id: input.userId,
     p_usage_date: today,
     p_daily_limit: DAILY_GENERATION_LIMIT,

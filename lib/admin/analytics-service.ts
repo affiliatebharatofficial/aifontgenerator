@@ -164,7 +164,7 @@ export async function getAdminAnalytics(
     created_at: string;
   };
 
-  const fromAiLogs = supabase.from as unknown as (relation: string) => {
+  const fromAiLogs = supabase.from.bind(supabase) as unknown as (relation: string) => {
     select: (cols: string) => {
       gte: (col: string, val: string) => Promise<{ data: AiLogRecord[] | null }>;
       then: (onfulfilled?: (value: { data: AiLogRecord[] | null }) => unknown) => Promise<unknown>;
@@ -241,7 +241,7 @@ export async function getAdminAnalytics(
   });
 
   // 7. Active Users Period
-  const fromEvents = supabase.from as unknown as (relation: string) => {
+  const fromEvents = supabase.from.bind(supabase) as unknown as (relation: string) => {
     select: (cols: string) => {
       gte: (col: string, val: string) => Promise<{ data: Array<{ user_id: string | null }> | null }>;
       then: (onfulfilled?: (value: { data: Array<{ user_id: string | null }> | null }) => unknown) => Promise<unknown>;

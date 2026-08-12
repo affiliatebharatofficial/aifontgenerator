@@ -49,7 +49,7 @@ export async function getUserEntitlements(userId: string): Promise<UserEntitleme
   let planName = 'Free Launch Plan';
 
   try {
-    const fromFunc = supabase.from as unknown as (relation: string) => {
+    const boundFrom = supabase.from.bind(supabase) as unknown as (relation: string) => {
       select: (cols: string) => {
         eq: (col: string, val: string) => {
           maybeSingle: () => Promise<{ data: { subscription_plans?: { slug?: string; name?: string } } | null }>;
@@ -57,7 +57,7 @@ export async function getUserEntitlements(userId: string): Promise<UserEntitleme
       };
     };
 
-    const { data: sub } = await fromFunc('user_subscriptions')
+    const { data: sub } = await boundFrom('user_subscriptions')
       .select('subscription_plans(slug, name)')
       .eq('user_id', userId)
       .maybeSingle();

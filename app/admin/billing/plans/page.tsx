@@ -35,7 +35,7 @@ export default async function AdminBillingPlansPage() {
   let plans: SubscriptionPlanRecord[] = [];
 
   try {
-    const fromPlans = supabase.from as unknown as (relation: string) => {
+    const fromPlans = supabase.from.bind(supabase) as unknown as (relation: string) => {
       select: (cols: string) => {
         order: (col: string, opts: { ascending: boolean }) => Promise<{ data: SubscriptionPlanRecord[] | null }>;
       };
