@@ -284,6 +284,83 @@ Given a font description, output ONLY valid raw JSON matching this FontSpecifica
       return { result: parsed, inputTokens, outputTokens };
     }
 
+    if (config.provider === 'deepseek') {
+      const apiKey = process.env.DEEPSEEK_API_KEY;
+      if (!apiKey) {
+        throw new Error('PROVIDER_AUTH_ERROR: DEEPSEEK_API_KEY environment variable unconfigured.');
+      }
+
+      const res = await fetch('https://api.deepseek.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: config.model || 'deepseek-chat',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: prompt },
+          ],
+          temperature: 0.7,
+          response_format: { type: 'json_object' },
+        }),
+      });
+
+      if (!res.ok) {
+        if (res.status === 429) throw new Error('PROVIDER_RATE_LIMIT');
+        if (res.status === 401 || res.status === 403) throw new Error('PROVIDER_AUTH_ERROR');
+        if (res.status >= 500) throw new Error('PROVIDER_SERVER_ERROR');
+        throw new Error(`DeepSeek HTTP ${res.status}`);
+      }
+
+      const data = await res.json();
+      const rawText = data.choices?.[0]?.message?.content || '';
+      const parsed = this.parseAndValidateSpecification(rawText, options);
+      const inputTokens = data.usage?.prompt_tokens ?? null;
+      const outputTokens = data.usage?.completion_tokens ?? null;
+
+      return { result: parsed, inputTokens, outputTokens };
+    }
+
+    if (config.provider === 'openrouter') {
+      const apiKey = process.env.OPENROUTER_API_KEY;
+      if (!apiKey) {
+        throw new Error('PROVIDER_AUTH_ERROR: OPENROUTER_API_KEY environment variable unconfigured.');
+      }
+
+      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: config.model || 'deepseek/deepseek-chat',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: prompt },
+          ],
+          temperature: 0.7,
+        }),
+      });
+
+      if (!res.ok) {
+        if (res.status === 429) throw new Error('PROVIDER_RATE_LIMIT');
+        if (res.status === 401 || res.status === 403) throw new Error('PROVIDER_AUTH_ERROR');
+        if (res.status >= 500) throw new Error('PROVIDER_SERVER_ERROR');
+        throw new Error(`OpenRouter HTTP ${res.status}`);
+      }
+
+      const data = await res.json();
+      const rawText = data.choices?.[0]?.message?.content || '';
+      const parsed = this.parseAndValidateSpecification(rawText, options);
+      const inputTokens = data.usage?.prompt_tokens ?? null;
+      const outputTokens = data.usage?.completion_tokens ?? null;
+
+      return { result: parsed, inputTokens, outputTokens };
+    }
+
     // Default synthesis fallback if API keys are unconfigured
     return {
       result: this.parseAndValidateSpecification('{}', options),
