@@ -4,8 +4,6 @@ import { constructMetadata } from '@/lib/seo/metadata';
 import { Breadcrumbs } from '@/components/marketing/Breadcrumbs';
 import { ContactForm } from './ContactForm';
 import { Mail, ShieldCheck, Clock } from 'lucide-react';
-import { Header } from '@/components/layout/Header';
-import { Footer } from '@/components/layout/Footer';
 
 export const metadata: Metadata = constructMetadata({
   title: 'Contact Engineering Support — AI Font Generator',
@@ -27,8 +25,7 @@ export default async function ContactPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#09090b] text-[#f4f4f5] font-sans selection:bg-[#e05638]/20 selection:text-[#f4f4f5]">
-      <Header />
-
+      
       <main className="flex-1 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 w-full space-y-12">
         <Breadcrumbs items={[{ name: 'Contact', href: '/contact' }]} />
 
@@ -88,7 +85,6 @@ export default async function ContactPage() {
         </div>
       </main>
 
-      <Footer />
-    </div>
+          </div>
   );
 }

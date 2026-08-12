@@ -3,8 +3,6 @@ import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { constructMetadata } from '@/lib/seo/metadata';
 import { Breadcrumbs } from '@/components/marketing/Breadcrumbs';
-import { Header } from '@/components/layout/Header';
-import { Footer } from '@/components/layout/Footer';
 
 export const metadata: Metadata = constructMetadata({
   title: 'Typography Glossary — Essential Type & Font Terminology Guide',
@@ -121,8 +119,7 @@ export default function TypographyGlossaryPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#09090b] text-[#f4f4f5] font-sans selection:bg-[#e05638]/20 selection:text-[#f4f4f5]">
-      <Header />
-
+      
       <main className="flex-1 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 w-full space-y-12">
         <Breadcrumbs items={[{ name: 'Typography Glossary', href: '/typography-glossary' }]} />
 
@@ -169,7 +166,6 @@ export default function TypographyGlossaryPage() {
         </div>
       </main>
 
-      <Footer />
-    </div>
+          </div>
   );
 }

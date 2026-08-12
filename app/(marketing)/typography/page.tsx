@@ -1,7 +1,5 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Header } from '@/components/layout/Header';
-import { Footer } from '@/components/layout/Footer';
 import {
   BookOpen,
   ArrowRight,
@@ -61,8 +59,7 @@ const CATEGORIES = [
 export default function TypographyHubPage() {
   return (
     <div className="min-h-screen flex flex-col bg-[#09090b] text-[#f4f4f5]">
-      <Header />
-
+      
       <main className="flex-1 space-y-16 py-12">
         {/* Hero */}
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 text-center space-y-6">
@@ -187,7 +184,6 @@ export default function TypographyHubPage() {
         </section>
       </main>
 
-      <Footer />
-    </div>
+          </div>
   );
 }

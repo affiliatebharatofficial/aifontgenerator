@@ -4,8 +4,6 @@ import { ArrowRight, Sparkles, Tag } from 'lucide-react';
 import { constructMetadata } from '@/lib/seo/metadata';
 import { Breadcrumbs } from '@/components/marketing/Breadcrumbs';
 import { FaqSection } from '@/components/marketing/FaqSection';
-import { Header } from '@/components/layout/Header';
-import { Footer } from '@/components/layout/Footer';
 
 export const metadata: Metadata = constructMetadata({
   title: 'Cursive Font Generator — Flowing Script & Calligraphic Typefaces',
@@ -30,8 +28,7 @@ export default function CursiveFontGeneratorPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#09090b] text-[#f4f4f5] font-sans selection:bg-[#e05638]/20 selection:text-[#f4f4f5]">
-      <Header />
-
+      
       <main className="flex-1 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 w-full space-y-16">
         <Breadcrumbs items={[{ name: 'Cursive Font Generator', href: '/cursive-font-generator' }]} />
 
@@ -88,7 +85,6 @@ export default function CursiveFontGeneratorPage() {
         <FaqSection faqs={faqs} />
       </main>
 
-      <Footer />
-    </div>
+          </div>
   );
 }

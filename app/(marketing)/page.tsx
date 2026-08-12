@@ -1,8 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
-import { Header } from '@/components/layout/Header';
-import { Footer } from '@/components/layout/Footer';
 
 import { constructMetadata } from '@/lib/seo/metadata';
 import { getWebSiteJsonLd, getWebApplicationJsonLd } from '@/lib/seo/jsonld';
@@ -22,8 +20,7 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen flex flex-col bg-[#09090b] text-[#f4f4f5] font-sans selection:bg-[#e05638]/20 selection:text-[#f4f4f5]">
       <JsonLd data={[websiteSchema, webAppSchema]} />
-      <Header />
-
+      
       <main className="flex-1 space-y-24 sm:space-y-32 py-12 sm:py-20">
         {/* 1. HERO SECTION */}
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
@@ -216,7 +213,6 @@ export default function LandingPage() {
         </section>
       </main>
 
-      <Footer />
-    </div>
+          </div>
   );
 }
