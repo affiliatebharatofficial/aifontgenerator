@@ -32,3 +32,20 @@ export async function createClient() {
     return createBaseClient<Database>(supabaseUrl, supabaseAnonKey) as unknown as ReturnType<typeof createServerClient<Database>>;
   }
 }
+
+/**
+ * Creates a privileged admin Supabase client using SUPABASE_SERVICE_ROLE_KEY (if available)
+ * or standard client. Only to be called in server contexts after requireAdmin() verification.
+ */
+export async function createAdminClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key';
+
+  return createBaseClient<Database>(supabaseUrl, serviceKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  });
+}
+

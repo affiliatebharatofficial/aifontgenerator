@@ -1,6 +1,6 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/admin';
 import { logAdminAction } from './service';
 import { revalidatePath } from 'next/cache';
@@ -487,7 +487,7 @@ export async function adminSetUserLimitOverrideAction(
   reason: string = 'Admin manual adjustment'
 ): Promise<AdminActionResult> {
   const { user: currentAdmin } = await requireAdmin();
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   // Verify target user exists
   const { data: targetProfile } = await supabase
@@ -573,7 +573,7 @@ export async function adminAssignUserPlanAction(
   durationMonths: number = 12
 ): Promise<AdminActionResult> {
   const { user: currentAdmin } = await requireAdmin();
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   // Verify target user exists
   const { data: targetProfile } = await supabase
@@ -661,7 +661,7 @@ export async function adminAdjustUserCreditBalanceAction(
   description: string = 'Admin manual credit adjustment'
 ): Promise<AdminActionResult> {
   const { user: currentAdmin } = await requireAdmin();
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const boundCredits = supabase.from.bind(supabase) as unknown as (relation: string) => {
     select: (cols: string) => {
@@ -724,7 +724,7 @@ export async function adminAdjustUserCreditBalanceAction(
  */
 export async function createSubscriptionPlanAction(formData: FormData): Promise<AdminActionResult> {
   const { user: currentAdmin } = await requireAdmin();
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const name = (formData.get('name') as string)?.trim() || '';
   const slug = (formData.get('slug') as string)?.trim().toLowerCase() || '';
@@ -781,7 +781,7 @@ export async function createSubscriptionPlanAction(formData: FormData): Promise<
  */
 export async function updateSubscriptionPlanAction(formData: FormData): Promise<AdminActionResult> {
   const { user: currentAdmin } = await requireAdmin();
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const id = (formData.get('id') as string)?.trim();
   const name = (formData.get('name') as string)?.trim() || '';
@@ -841,7 +841,7 @@ export async function updateSubscriptionPlanAction(formData: FormData): Promise<
  */
 export async function deleteSubscriptionPlanAction(planId: string): Promise<AdminActionResult> {
   const { user: currentAdmin } = await requireAdmin();
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   // Check if any active user subscriptions are linked to this plan
   const boundSubs = supabase.from.bind(supabase) as unknown as (relation: string) => {
@@ -908,7 +908,7 @@ export async function toggleSubscriptionPlanActiveAction(
   isActive: boolean
 ): Promise<AdminActionResult> {
   const { user: currentAdmin } = await requireAdmin();
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const boundPlans = supabase.from.bind(supabase) as unknown as (relation: string) => {
     update: (data: Record<string, unknown>) => {
