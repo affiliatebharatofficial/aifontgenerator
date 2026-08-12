@@ -5,6 +5,10 @@ import { StemPrimitive } from './primitives/StemPrimitive';
 import { SerifPrimitive } from './primitives/SerifPrimitive';
 import { RingPrimitive } from './primitives/RingPrimitive';
 import { DiagonalPrimitive } from './primitives/DiagonalPrimitive';
+import { LatinExtendedPrimitive } from './primitives/LatinExtendedPrimitive';
+import { DevanagariPrimitive } from './primitives/DevanagariPrimitive';
+import { CHARACTER_SETS } from '../character-set/registry';
+
 
 export class StyleAwareGlyphEngine {
   private ctx: GlyphGeometryContext;
@@ -140,11 +144,16 @@ export class StyleAwareGlyphEngine {
       });
     }
 
-    // 7. Devanagari script if enabled
+    // 7. Latin Extended Accented Glyphs (French, German, Spanish, Portuguese, Italian, Polish, Czech, Turkish, etc.)
+    this.generateLatinExtendedGlyphs(glyphs);
+
+    // 8. Devanagari script if enabled
     const isDevanagari =
       (this.ctx.dna.styleFamily as string) === 'DEVANAGARI' ||
       this.spec.characterSet.devanagari === true ||
-      (this.spec.category || '').toLowerCase() === 'devanagari';
+      (this.spec.category || '').toLowerCase() === 'devanagari' ||
+      (this.spec.designDescription || '').toLowerCase().includes('hindi') ||
+      (this.spec.designDescription || '').toLowerCase().includes('devanagari');
 
     if (isDevanagari) {
       this.generateDevanagariGlyphs(glyphs);
@@ -152,6 +161,7 @@ export class StyleAwareGlyphEngine {
 
     return glyphs;
   }
+
 
   private createNotDefGlyph(): Glyph {
     const p = new Path();
@@ -1082,61 +1092,66 @@ export class StyleAwareGlyphEngine {
   }
 
   // =========================================================================
+  // LATIN EXTENDED ACCENTED GLYPHS
+  // =========================================================================
+  private generateLatinExtendedGlyphs(glyphs: Glyph[]): void {
+    const latExt = CHARACTER_SETS.LATIN_EXTENDED;
+    if (!latExt) return;
+
+    for (const g of latExt.glyphList) {
+      if (g.code <= 126) continue; // Skip basic latin handled above
+
+      const p = new Path();
+      const success = LatinExtendedPrimitive.addAccentedGlyph(
+        this.ctx,
+        p,
+        g.code,
+        (pathObj, baseCode) => {
+          let baseGlyph: Glyph | null = null;
+          if (baseCode >= 65 && baseCode <= 90) {
+            baseGlyph = this.createUppercaseGlyph(String.fromCharCode(baseCode), baseCode);
+          } else if (baseCode >= 97 && baseCode <= 122) {
+            baseGlyph = this.createLowercaseGlyph(String.fromCharCode(baseCode), baseCode);
+          }
+          if (baseGlyph && baseGlyph.path) {
+            pathObj.commands.push(...baseGlyph.path.commands);
+          }
+        }
+
+      );
+
+      if (success) {
+        glyphs.push(
+          this.sanitizeGlyph(
+            new Glyph({
+              name: g.name,
+              unicode: g.code,
+              advanceWidth: this.ctx.getAdvanceWidth(520, 'straight'),
+              path: p,
+            })
+          )
+        );
+      }
+    }
+  }
+
+  // =========================================================================
   // DEVANAGARI SCRIPT
   // =========================================================================
   private generateDevanagariGlyphs(glyphs: Glyph[]): void {
-    const capH = this.ctx.capH;
-    const stem = this.ctx.stem;
-    const hStem = this.ctx.hStem;
+    const devCore = CHARACTER_SETS.DEVANAGARI_CORE;
+    if (!devCore) return;
 
-    // Unicode Range 0x0905 - 0x0939 (Devanagari Characters)
-    const devanagariChars = [
-      { code: 0x0905, name: 'dvA' }, // अ
-      { code: 0x0906, name: 'dvAA' }, // आ
-      { code: 0x0915, name: 'dvKA' }, // क
-      { code: 0x0916, name: 'dvKHA' }, // ख
-      { code: 0x0917, name: 'dvGA' }, // ग
-      { code: 0x0918, name: 'dvGHA' }, // घ
-      { code: 0x091a, name: 'dvCA' }, // च
-      { code: 0x091c, name: 'dvJA' }, // ज
-      { code: 0x0924, name: 'dvTA' }, // त
-      { code: 0x0925, name: 'dvTHA' }, // थ
-      { code: 0x0926, name: 'dvDA' }, // द
-      { code: 0x0927, name: 'dvDHA' }, // ध
-      { code: 0x0928, name: 'dvNA' }, // न
-      { code: 0x092a, name: 'dvPA' }, // प
-      { code: 0x092b, name: 'dvPHA' }, // फ
-      { code: 0x092c, name: 'dvBA' }, // ब
-      { code: 0x092d, name: 'dvBHA' }, // भ
-      { code: 0x092e, name: 'dvMA' }, // म
-      { code: 0x092f, name: 'dvYA' }, // य
-      { code: 0x0930, name: 'dvRA' }, // र
-      { code: 0x0932, name: 'dvLA' }, // ल
-      { code: 0x0935, name: 'dvVA' }, // व
-      { code: 0x0938, name: 'dvSA' }, // स
-      { code: 0x0939, name: 'dvHA' }, // ह
-    ];
-
-    for (const d of devanagariChars) {
+    for (const d of devCore.glyphList) {
       const p = new Path();
-      const nominalW = 600;
-
-      // 1. Shirorekha (Top Hanging Headline)
-      StemPrimitive.addStem(this.ctx, p, 30, capH - hStem, nominalW - 60, hStem, d.code);
-
-      // 2. Main Right Vertical Stem (Kana / Kharā Danda)
-      const stemX = nominalW - 60 - stem;
-      StemPrimitive.addStem(this.ctx, p, stemX, 0, stem, capH - hStem, d.code);
-
-      // 3. Left loop body
-      RingPrimitive.addRing(this.ctx, p, 60, Math.round(capH * 0.15), nominalW - 120 - stem, Math.round(capH * 0.55), stem, hStem, d.code);
+      DevanagariPrimitive.addDevanagariGlyph(this.ctx, p, d.code);
 
       glyphs.push(
         this.sanitizeGlyph(
           new Glyph({
             name: d.name,
             unicode: d.code,
-            advanceWidth: this.ctx.getAdvanceWidth(nominalW, 'straight'),
+            advanceWidth: this.ctx.getAdvanceWidth(640, 'straight'),
             path: p,
           })
         )
@@ -1144,3 +1159,4 @@ export class StyleAwareGlyphEngine {
     }
   }
 }
+

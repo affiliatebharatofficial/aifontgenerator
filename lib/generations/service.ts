@@ -225,7 +225,7 @@ export async function createGenerationJob(input: CreateGenerationInput): Promise
   // 3. Insert font_generations record with status: 'pending'
   const { data: job, error: insertError } = await supabase
     .from('font_generations')
-    .insert({
+    .insert([{
       user_id: input.userId,
       font_name: input.fontName ? input.fontName.trim() : null,
       prompt: input.prompt.trim(),
@@ -240,10 +240,11 @@ export async function createGenerationJob(input: CreateGenerationInput): Promise
       generation_type: generationType,
       generation_controls: (input.generationControls as unknown as import('@/types/database').Json) || null,
       seed: input.seed !== undefined ? input.seed : null,
-      status: 'pending',
-    } as any)
+    }] as any)
     .select()
     .single();
+
+
 
 
 

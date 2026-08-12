@@ -10,7 +10,10 @@ export interface PromptAnalysis {
   modifiers: PromptDesignModifiers;
   activeModifiers: string[];
   rawTags: string[];
+  targetScript?: 'LATIN' | 'LATIN_EXTENDED' | 'DEVANAGARI' | 'MIXED';
+  unsupportedScript?: 'ARABIC' | 'JAPANESE' | 'CHINESE' | 'KOREAN' | 'CYRILLIC' | 'GREEK';
 }
+
 
 export class PromptIntelligenceEngine {
   /**
@@ -23,10 +26,35 @@ export class PromptIntelligenceEngine {
     // 1. Extract Base Style Family
     const baseFamily = this.extractBaseStyleFamily(text, cat);
 
-    // 2. Extract Detailed Modifiers
+    // 2. Script Intent & Unsupported Script Detection
+    let targetScript: 'LATIN' | 'LATIN_EXTENDED' | 'DEVANAGARI' | 'MIXED' | undefined = undefined;
+    let unsupportedScript: 'ARABIC' | 'JAPANESE' | 'CHINESE' | 'KOREAN' | 'CYRILLIC' | 'GREEK' | undefined = undefined;
+
+    if (/\b(devanagari|hindi|marathi|sanskrit|nepali)\b/i.test(text) || cat === 'devanagari') {
+      targetScript = /\b(latin|english)\b/i.test(text) ? 'MIXED' : 'DEVANAGARI';
+    } else if (/\b(latin extended|french|german|spanish|italian|portuguese|polish|czech|turkish|accented)\b/i.test(text)) {
+      targetScript = 'LATIN_EXTENDED';
+    }
+
+    if (/\b(arabic|urdu|persian)\b/i.test(text)) {
+      unsupportedScript = 'ARABIC';
+    } else if (/\b(japanese|kanji|hiragana|katakana)\b/i.test(text)) {
+      unsupportedScript = 'JAPANESE';
+    } else if (/\b(chinese|mandarin|hanzi)\b/i.test(text)) {
+      unsupportedScript = 'CHINESE';
+    } else if (/\b(korean|hangul)\b/i.test(text)) {
+      unsupportedScript = 'KOREAN';
+    } else if (/\b(cyrillic|russian)\b/i.test(text)) {
+      unsupportedScript = 'CYRILLIC';
+    } else if (/\b(greek)\b/i.test(text)) {
+      unsupportedScript = 'GREEK';
+    }
+
+    // 3. Extract Detailed Modifiers
     const modifiers: PromptDesignModifiers = {};
     const activeModifiers: string[] = [];
     const rawTags: string[] = [];
+
 
     // --- WIDTH MODIFIERS ---
     if (/\b(ultra[-\s]?condensed|compressed)\b/i.test(text)) {
@@ -233,8 +261,11 @@ export class PromptIntelligenceEngine {
       modifiers,
       activeModifiers,
       rawTags,
+      targetScript,
+      unsupportedScript,
     };
   }
+
 
   /**
    * Extracts Base Style Family without being hijacked by descriptive modifier terms.
