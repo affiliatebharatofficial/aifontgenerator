@@ -1,7 +1,5 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Header } from '@/components/layout/Header';
-import { Footer } from '@/components/layout/Footer';
 import { TemplateDownloadButton } from '@/components/font/handwriting/TemplateDownloadButton';
 import {
   Sparkles,
@@ -30,10 +28,8 @@ export const metadata: Metadata = {
 
 export default function HandwritingFontGeneratorPage() {
   return (
-    <div className="min-h-screen flex flex-col bg-[#09090b] text-[#f4f4f5]">
-      <Header />
-
-      <main className="flex-1 space-y-20 py-12">
+    <div className="space-y-20 py-12">
+      {/* Hero Section */}
         {/* Hero Section */}
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-8 text-center">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-mono font-bold uppercase bg-[#e05638]/10 text-[#e05638] border border-[#e05638]/30">
@@ -177,9 +173,6 @@ export default function HandwritingFontGeneratorPage() {
             </Link>
           </div>
         </section>
-      </main>
-
-      <Footer />
     </div>
   );
 }
