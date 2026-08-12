@@ -40,7 +40,11 @@ export default async function GenerationStatusPage({
     generation = await getGenerationStatus(generationId, user.id);
   }
 
-  if (generation && generation.status === 'completed') {
+  if (!generation) {
+    notFound();
+  }
+
+  if (generation.status === 'completed') {
     redirect(`/font/${generation.id}`);
   }
 
