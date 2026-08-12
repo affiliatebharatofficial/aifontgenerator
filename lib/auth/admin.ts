@@ -35,12 +35,12 @@ export async function requireAdmin(): Promise<AdminAuthResult> {
     .from('profiles')
     .select('*')
     .eq('id', user.id)
-    .single();
+    .maybeSingle();
 
   const profile = data as Profile | null;
 
   if (dbError || !profile || profile.role !== 'admin') {
-    throw new Error('UNAUTHORIZED_ADMIN_ACCESS');
+    redirect('/dashboard');
   }
 
   return {
