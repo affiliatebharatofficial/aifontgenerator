@@ -28,7 +28,30 @@ export default async function DashboardPage() {
     .eq('user_id', user.id)
     .order('created_at', { ascending: false });
 
-  const generations = (rawGenerations as unknown as FontGeneration[]) ?? [];
+  let generations = (rawGenerations as unknown as FontGeneration[]) ?? [];
+
+  const pendingJobs = generations.filter(
+    (g) => g.status === 'pending' || g.status === 'processing'
+  );
+
+  if (pendingJobs.length > 0) {
+    try {
+      const { GenerationJobService } = await import('@/lib/font/generation/jobProcessor');
+      await Promise.all(pendingJobs.map((j) => GenerationJobService.processJob(j.id)));
+
+      const { data: refreshed } = await supabase
+        .from('font_generations')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (refreshed) {
+        generations = (refreshed as unknown as FontGeneration[]) ?? [];
+      }
+    } catch (err) {
+      console.error('Auto-processing dashboard pending fonts failed:', err);
+    }
+  }
 
   const totalCount = generations.length;
   const completedCount = generations.filter((g) => g.status === 'completed').length;

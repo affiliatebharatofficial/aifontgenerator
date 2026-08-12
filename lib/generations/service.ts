@@ -244,13 +244,34 @@ export async function getUserGenerations(
 
   const { data, count, error } = await query;
 
-  if (error) {
-    console.error('Failed to fetch user generations:', error.message);
-    return { data: [], totalCount: 0 };
+  const rawList = (data as unknown as FontGeneration[]) ?? [];
+  const pendingJobs = rawList.filter((g) => g.status === 'pending' || g.status === 'processing');
+
+  if (pendingJobs.length > 0) {
+    try {
+      const { GenerationJobService } = await import('@/lib/font/generation/jobProcessor');
+      await Promise.all(pendingJobs.map((j) => GenerationJobService.processJob(j.id)));
+
+      const { data: refreshed } = await supabase
+        .from('font_generations')
+        .select('*', { count: 'exact' })
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .range(from, to);
+
+      if (refreshed) {
+        return {
+          data: (refreshed as unknown as FontGeneration[]) ?? [],
+          totalCount: count ?? refreshed.length,
+        };
+      }
+    } catch (e) {
+      console.error('Auto-processing pending jobs failed:', e);
+    }
   }
 
   return {
-    data: (data as unknown as FontGeneration[]) ?? [],
+    data: rawList,
     totalCount: count ?? 0,
   };
 }
