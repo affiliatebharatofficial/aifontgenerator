@@ -32,17 +32,45 @@ export default async function AdminBillingPlansPage() {
   const monetizationMode = await getSiteSetting<string>('monetization_mode', 'free');
   const dailyLimit = await getSiteSetting<number>('daily_generation_limit', 10);
 
-  const fromPlans = supabase.from as unknown as (relation: string) => {
-    select: (cols: string) => {
-      order: (col: string, opts: { ascending: boolean }) => Promise<{ data: SubscriptionPlanRecord[] | null }>;
+  let plans: SubscriptionPlanRecord[] = [];
+
+  try {
+    const fromPlans = supabase.from as unknown as (relation: string) => {
+      select: (cols: string) => {
+        order: (col: string, opts: { ascending: boolean }) => Promise<{ data: SubscriptionPlanRecord[] | null }>;
+      };
     };
-  };
 
-  const { data: rawPlans } = await fromPlans('subscription_plans')
-    .select('*')
-    .order('monthly_price', { ascending: true });
+    const { data: rawPlans } = await fromPlans('subscription_plans')
+      .select('*')
+      .order('monthly_price', { ascending: true });
 
-  const plans: SubscriptionPlanRecord[] = rawPlans ?? [];
+    if (rawPlans && rawPlans.length > 0) {
+      plans = rawPlans;
+    }
+  } catch {
+    // Fallback default launch plan if table query fails
+  }
+
+  if (plans.length === 0) {
+    plans = [
+      {
+        id: 'default-free-plan',
+        name: 'Free Plan',
+        slug: 'free',
+        description: 'Canonical free launch plan with daily AI font generation quotas.',
+        is_active: true,
+        is_default: true,
+        monthly_price: 0,
+        yearly_price: 0,
+        currency: 'USD',
+        generation_limit: dailyLimit,
+        storage_limit_mb: 100,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+    ];
+  }
 
   return (
     <div className="space-y-8 font-mono text-xs text-slate-300 max-w-4xl">
