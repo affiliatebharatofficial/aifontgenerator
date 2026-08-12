@@ -223,39 +223,66 @@ export async function createGenerationJob(input: CreateGenerationInput): Promise
   }
 
   // 3. Insert font_generations record with status: 'pending'
-  const { data: job, error: insertError } = await supabase
+  const primaryPayload: Record<string, unknown> = {
+    user_id: input.userId,
+    font_name: input.fontName ? input.fontName.trim() : null,
+    prompt: input.prompt.trim(),
+    category: input.category,
+    weight: input.weight,
+    width: input.width,
+    style: input.style,
+    character_set: input.characterSet,
+    advanced_settings: input.advancedSettings,
+    parent_generation_id: parentId,
+    version_number: versionNumber,
+    generation_type: generationType,
+    status: 'pending',
+  };
+
+  if (input.generationControls) {
+    primaryPayload.generation_controls = input.generationControls;
+  }
+  if (input.seed !== undefined) {
+    primaryPayload.seed = input.seed;
+  }
+
+  let job: any = null;
+  let insertError: any = null;
+
+  const firstAttempt = await supabase
     .from('font_generations')
-    .insert([{
-      user_id: input.userId,
-      font_name: input.fontName ? input.fontName.trim() : null,
-      prompt: input.prompt.trim(),
-      category: input.category,
-      weight: input.weight,
-      width: input.width,
-      style: input.style,
-      character_set: input.characterSet as unknown as import('@/types/database').Json,
-      advanced_settings: input.advancedSettings as unknown as import('@/types/database').Json,
-      parent_generation_id: parentId,
-      version_number: versionNumber,
-      generation_type: generationType,
-      generation_controls: (input.generationControls as unknown as import('@/types/database').Json) || null,
-      seed: input.seed !== undefined ? input.seed : null,
-    }] as any)
+    .insert([primaryPayload] as any)
     .select()
     .single();
 
+  job = firstAttempt.data;
+  insertError = firstAttempt.error;
 
+  // Fallback: If remote Supabase schema has not run Phase 24 migration yet (missing generation_controls/seed column)
+  if (insertError && (insertError.message?.includes('generation_controls') || insertError.message?.includes('seed'))) {
+    console.warn('Supabase DB missing generation_controls/seed columns. Retrying with legacy schema insert...');
+    delete primaryPayload.generation_controls;
+    delete primaryPayload.seed;
 
+    const retryAttempt = await supabase
+      .from('font_generations')
+      .insert([primaryPayload] as any)
+      .select()
+      .single();
 
+    job = retryAttempt.data;
+    insertError = retryAttempt.error;
+  }
 
   if (insertError || !job) {
-    console.error('Failed to insert generation record:', insertError?.message);
+    console.error('Failed to insert generation record:', insertError?.message, insertError?.details, insertError?.hint);
     return {
       success: false,
       code: 'SERVER_ERROR',
-      error: 'Failed to record font generation request in database.',
+      error: `Failed to record font generation request in database: ${insertError?.message || 'Database insert error'}`,
     };
   }
+
 
   trackAnalyticsEvent({
     eventName: parentId ? 'version_created' : 'generation_started',
