@@ -185,6 +185,56 @@ export interface FontLicense {
   updated_at: string;
 }
 
+export interface SubscriptionPlan {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  is_active: boolean;
+  is_default: boolean;
+  monthly_price: number;
+  yearly_price: number;
+  currency: string;
+  generation_limit: number;
+  storage_limit_mb: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserSubscription {
+  id: string;
+  user_id: string;
+  plan_id: string;
+  provider: string;
+  provider_subscription_id: string | null;
+  status: string;
+  current_period_start: string;
+  current_period_end: string;
+  cancel_at_period_end: boolean;
+  created_at: string;
+  updated_at: string;
+  subscription_plans?: SubscriptionPlan;
+}
+
+export interface UserEntitlementOverride {
+  id: string;
+  user_id: string;
+  feature: string;
+  enabled: boolean;
+  limit_override: number | null;
+  expires_at: string | null;
+  reason: string | null;
+  created_at: string;
+}
+
+export interface CreditBalance {
+  id: string;
+  user_id: string;
+  balance: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export type Database = {
   public: {
     Tables: {

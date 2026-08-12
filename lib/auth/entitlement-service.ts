@@ -22,12 +22,11 @@ export interface UserEntitlements {
 export async function getUserEntitlements(userId: string): Promise<UserEntitlements> {
   const supabase = await createClient();
 
-  // 1. Daily Usage & Quota Counter
-  const dailyLimit = await getSiteSetting<number>('daily_generation_limit', 10);
+  // 1. Daily Usage & Dynamic Quota Counter
   const usageInfo = await getUserDailyUsage(userId);
-
+  const dailyLimit = usageInfo.limit;
   const remaining = Math.max(0, dailyLimit - usageInfo.count);
-  const isLimitReached = usageInfo.count >= dailyLimit;
+  const isLimitReached = usageInfo.isLimitReached;
 
   // 2. Feature Flags Server-Side
   const aiGenEnabled = await isFeatureEnabled('ai_font_generation', true);

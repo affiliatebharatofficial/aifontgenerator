@@ -31,8 +31,85 @@ export interface CreateGenerationResult {
   code?: 'AUTH_REQUIRED' | 'INVALID_PROMPT' | 'INVALID_CONFIGURATION' | 'GENERATION_LIMIT_REACHED' | 'SERVER_ERROR';
 }
 
+import { getSiteSetting, isFeatureEnabled } from '@/lib/admin/settings-service';
+import { trackAnalyticsEvent } from '@/lib/analytics/service';
+
 /**
- * Service: Check current user daily generation usage
+ * Service: Resolves the effective daily generation limit for a user
+ * Priority: 1. User custom entitlement override -> 2. User subscription plan limit -> 3. Global site setting -> 4. Fallback default
+ */
+export async function getUserEffectiveDailyLimit(userId: string): Promise<number> {
+  const supabase = await createClient();
+
+  // 1. Check user-specific limit override in user_entitlements
+  try {
+    const boundEntitlements = supabase.from.bind(supabase) as unknown as (relation: string) => {
+      select: (cols: string) => {
+        eq: (col: string, val: string) => {
+          eq: (col: string, val: string) => {
+            order: (col: string, opts: { ascending: boolean }) => {
+              limit: (n: number) => {
+                maybeSingle: () => Promise<{ data: { limit_override: number | null; enabled: boolean; expires_at: string | null } | null }>;
+              };
+            };
+          };
+        };
+      };
+    };
+
+    const { data: entitlement } = await boundEntitlements('user_entitlements')
+      .select('limit_override, enabled, expires_at')
+      .eq('user_id', userId)
+      .eq('feature', 'daily_generation_limit')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (entitlement && entitlement.enabled && entitlement.limit_override !== null) {
+      if (!entitlement.expires_at || new Date(entitlement.expires_at) > new Date()) {
+        return Math.max(0, entitlement.limit_override);
+      }
+    }
+  } catch {
+    // Fallthrough if table or record unavailable
+  }
+
+  // 2. Check user's assigned subscription plan limit
+  try {
+    const boundSub = supabase.from.bind(supabase) as unknown as (relation: string) => {
+      select: (cols: string) => {
+        eq: (col: string, val: string) => {
+          eq: (col: string, val: string) => {
+            maybeSingle: () => Promise<{ data: { subscription_plans?: { generation_limit?: number } } | null }>;
+          };
+        };
+      };
+    };
+
+    const { data: sub } = await boundSub('user_subscriptions')
+      .select('subscription_plans(generation_limit)')
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .maybeSingle();
+
+    if (sub && sub.subscription_plans && typeof sub.subscription_plans.generation_limit === 'number') {
+      return Math.max(0, sub.subscription_plans.generation_limit);
+    }
+  } catch {
+    // Fallthrough if table or record unavailable
+  }
+
+  // 3. Global site setting
+  try {
+    const globalLimit = await getSiteSetting<number>('daily_generation_limit', DAILY_GENERATION_LIMIT);
+    return Math.max(1, globalLimit);
+  } catch {
+    return DAILY_GENERATION_LIMIT;
+  }
+}
+
+/**
+ * Service: Check current user daily generation usage with dynamic limit resolution
  */
 export async function getUserDailyUsage(userId: string): Promise<{ count: number; limit: number; isLimitReached: boolean }> {
   const supabase = await createClient();
@@ -46,11 +123,12 @@ export async function getUserDailyUsage(userId: string): Promise<{ count: number
     .single();
 
   const currentCount = data?.generation_count ?? 0;
+  const effectiveLimit = await getUserEffectiveDailyLimit(userId);
 
   return {
     count: currentCount,
-    limit: DAILY_GENERATION_LIMIT,
-    isLimitReached: currentCount >= DAILY_GENERATION_LIMIT,
+    limit: effectiveLimit,
+    isLimitReached: currentCount >= effectiveLimit,
   };
 }
 
@@ -58,9 +136,6 @@ export async function getUserDailyUsage(userId: string): Promise<{ count: number
  * Service: Create a real database generation job (status = 'pending')
  * Increments usage exactly once upon successful insertion.
  */
-import { isFeatureEnabled } from '@/lib/admin/settings-service';
-import { trackAnalyticsEvent } from '@/lib/analytics/service';
-
 export async function createGenerationJob(input: CreateGenerationInput): Promise<CreateGenerationResult> {
   const supabase = await createClient();
   const today = new Date().toISOString().split('T')[0];
@@ -75,7 +150,10 @@ export async function createGenerationJob(input: CreateGenerationInput): Promise
     };
   }
 
-  // 1. Atomic Quota Check & Increment
+  // 1. Atomic Quota Check & Increment using effective dynamic limit
+  const usageInfo = await getUserDailyUsage(input.userId);
+  const effectiveLimit = usageInfo.limit;
+
   const boundRpc = supabase.rpc.bind(supabase) as unknown as (
     fn: string,
     args: Record<string, unknown>
@@ -84,26 +162,25 @@ export async function createGenerationJob(input: CreateGenerationInput): Promise
   const { data: rpcRes, error: rpcError } = await boundRpc('increment_daily_usage', {
     p_user_id: input.userId,
     p_usage_date: today,
-    p_daily_limit: DAILY_GENERATION_LIMIT,
+    p_daily_limit: effectiveLimit,
   });
 
   if (rpcError) {
     // Fallback: Read current count if RPC function is not created yet
-    const usageInfo = await getUserDailyUsage(input.userId);
     if (usageInfo.isLimitReached) {
       return {
         success: false,
         code: 'GENERATION_LIMIT_REACHED',
-        error: `You have reached your daily generation limit of ${DAILY_GENERATION_LIMIT} fonts. Please try again tomorrow.`,
+        error: `You have reached your daily generation limit of ${effectiveLimit} fonts. Limit resets tomorrow.`,
       };
     }
   } else if (rpcRes && Array.isArray(rpcRes) && rpcRes.length > 0) {
-    const { success, is_limit_reached } = rpcRes[0];
+    const { success } = rpcRes[0];
     if (!success) {
       return {
         success: false,
         code: 'GENERATION_LIMIT_REACHED',
-        error: `You have reached your daily generation limit of ${DAILY_GENERATION_LIMIT} fonts. Please try again tomorrow.`,
+        error: `You have reached your daily generation limit of ${effectiveLimit} fonts. Limit resets tomorrow.`,
       };
     }
   }

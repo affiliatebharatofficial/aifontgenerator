@@ -6,10 +6,18 @@ import Link from 'next/link';
 import { ArrowLeft, Layers, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { UserRoleButton } from '../UserRoleButton';
-import type { Profile, UserRole, FontGeneration } from '@/types/database';
+import { UserPlanQuotaManager } from './UserPlanQuotaManager';
+import { getUserDailyUsage } from '@/lib/generations/service';
+import type {
+  Profile,
+  UserRole,
+  FontGeneration,
+  SubscriptionPlan,
+  UserEntitlementOverride,
+} from '@/types/database';
 
 export const metadata: Metadata = {
-  title: 'User Details — Admin Panel',
+  title: 'User Details & Quota Management — Admin Panel',
   robots: {
     index: false,
     follow: false,
@@ -25,7 +33,7 @@ export default async function AdminUserDetailPage({
   const { userId } = await params;
   const supabase = await createClient();
 
-  // Fetch target profile
+  // 1. Fetch target profile
   const { data: rawProfile } = await supabase
     .from('profiles')
     .select('*')
@@ -38,7 +46,104 @@ export default async function AdminUserDetailPage({
     notFound();
   }
 
-  // Fetch target user's generations
+  // 2. Fetch all available subscription plans
+  const boundPlans = supabase.from.bind(supabase) as unknown as (relation: string) => {
+    select: (cols: string) => {
+      order: (col: string, opts: { ascending: boolean }) => Promise<{ data: SubscriptionPlan[] | null }>;
+    };
+  };
+
+  const { data: rawPlans } = await boundPlans('subscription_plans')
+    .select('*')
+    .order('monthly_price', { ascending: true });
+
+  let availablePlans: SubscriptionPlan[] = rawPlans ?? [];
+
+  if (availablePlans.length === 0) {
+    availablePlans = [
+      {
+        id: 'default-free-plan',
+        name: 'Free Plan',
+        slug: 'free',
+        description: 'Canonical free launch plan with daily AI font generation quotas.',
+        is_active: true,
+        is_default: true,
+        monthly_price: 0,
+        yearly_price: 0,
+        currency: 'USD',
+        generation_limit: 10,
+        storage_limit_mb: 100,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+    ];
+  }
+
+  // 3. Fetch user active subscription
+  const boundSubs = supabase.from.bind(supabase) as unknown as (relation: string) => {
+    select: (cols: string) => {
+      eq: (col: string, val: string) => {
+        maybeSingle: () => Promise<{ data: { plan_id: string; subscription_plans?: SubscriptionPlan } | null }>;
+      };
+    };
+  };
+
+  const { data: subData } = await boundSubs('user_subscriptions')
+    .select('plan_id, subscription_plans(*)')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  const currentPlan: SubscriptionPlan | null =
+    subData?.subscription_plans ||
+    availablePlans.find((p) => p.is_default) ||
+    availablePlans[0] ||
+    null;
+
+  // 4. Fetch custom daily limit override from user_entitlements
+  const boundEntitlements = supabase.from.bind(supabase) as unknown as (relation: string) => {
+    select: (cols: string) => {
+      eq: (col: string, val: string) => {
+        eq: (col: string, val: string) => {
+          order: (col: string, opts: { ascending: boolean }) => {
+            limit: (n: number) => {
+              maybeSingle: () => Promise<{ data: UserEntitlementOverride | null }>;
+            };
+          };
+        };
+      };
+    };
+  };
+
+  const { data: entitlementData } = await boundEntitlements('user_entitlements')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('feature', 'daily_generation_limit')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const currentOverride: UserEntitlementOverride | null = entitlementData ?? null;
+
+  // 5. Fetch effective daily usage & dynamic limit
+  const dailyUsage = await getUserDailyUsage(userId);
+
+  // 6. Fetch credit balance
+  const boundCredits = supabase.from.bind(supabase) as unknown as (relation: string) => {
+    select: (cols: string) => {
+      eq: (col: string, val: string) => {
+        maybeSingle: () => Promise<{ data: { balance: number } | null }>;
+      };
+    };
+  };
+
+  const { data: creditData } = await boundCredits('credit_balances')
+    .select('balance')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  const creditBalance = creditData?.balance ?? 0;
+
+  // 7. Fetch target user's generations
   const { data: rawGenerations } = await supabase
     .from('font_generations')
     .select('*')
@@ -62,7 +167,8 @@ export default async function AdminUserDetailPage({
         </Link>
       </div>
 
-      <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 sm:p-8 backdrop-blur-md space-y-6">
+      <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 sm:p-8 backdrop-blur-md space-y-8">
+        {/* User Identity Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-800">
           <div className="space-y-1">
             <span className="text-xs font-mono uppercase text-slate-500 font-semibold">User Details</span>
@@ -75,7 +181,19 @@ export default async function AdminUserDetailPage({
           <UserRoleButton userId={profile.id} currentRole={profile.role as UserRole} />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {/* Plan & Generation Quota Management Component */}
+        <UserPlanQuotaManager
+          userId={profile.id}
+          userEmail={profile.email}
+          currentPlan={currentPlan}
+          currentOverride={currentOverride}
+          dailyUsage={dailyUsage}
+          availablePlans={availablePlans}
+          creditBalance={creditBalance}
+        />
+
+        {/* Generation Stats Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4 border-t border-slate-800">
           <Card className="p-4 bg-slate-950 border-slate-800">
             <div className="flex items-center justify-between">
               <span className="text-xs text-slate-400 font-medium">Total Generations</span>
