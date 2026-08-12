@@ -58,8 +58,18 @@ export class GenerationJobService {
         advancedSettings: job.advanced_settings as unknown as AdvancedSettingsConfig,
       });
 
+      // 3b. Apply User Generation Controls onto Style DNA
+      if (job.generation_controls && spec.styleDNA) {
+        const { GenerationControlsEngine } = await import('../specification/generationControls');
+        spec.styleDNA = GenerationControlsEngine.applyGenerationControlsToDNA(
+          spec.styleDNA,
+          job.generation_controls as unknown as import('../specification/generationControls').GenerationControls
+        );
+      }
+
       // 4. Vector Glyph Synthesis & Font Compilation (TTF, OTF, WOFF2)
       const compiledBuffers = await FontCompilerService.compileFont(spec);
+
 
       // 5. Binary & Table Validation
       const validation = FontValidationService.validateFontBuffers(compiledBuffers);

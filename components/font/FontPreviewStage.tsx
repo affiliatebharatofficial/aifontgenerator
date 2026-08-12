@@ -65,13 +65,13 @@ export function FontPreviewStage({ generationId }: { generationId: string }) {
 
       {/* Control Bar */}
       <div className="border border-[#27272a] bg-[#121215] rounded-md p-6 space-y-4 font-mono text-xs text-[#a1a1aa]">
-        <div className="flex items-center justify-between border-b border-[#27272a] pb-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#27272a] pb-3">
           <span className="font-bold uppercase tracking-wider text-[#f4f4f5] flex items-center gap-2">
             <Sliders className="w-4 h-4 text-[#e05638]" />
-            <span>Interactive Typography Controls</span>
+            <span>Interactive Display Preview Controls</span>
           </span>
-          <span className="text-[10px] text-[#e05638] uppercase font-bold">
-            {fontLoaded ? 'WOFF2 ACTIVE' : 'LOADING BINARY...'}
+          <span className="text-[10px] text-[#71717a] uppercase font-bold">
+            Display-Only • {fontLoaded ? 'WOFF2 ACTIVE' : 'LOADING BINARY...'}
           </span>
         </div>
 
@@ -159,12 +159,45 @@ export function FontPreviewStage({ generationId }: { generationId: string }) {
             </div>
           </div>
         </div>
+
+        {/* Specimen Presets Bar */}
+        <div className="pt-3 border-t border-[#27272a]/60 flex flex-wrap items-center gap-2 text-[11px]">
+          <span className="text-[#71717a] font-bold uppercase text-[10px] mr-1">Presets:</span>
+          <button
+            type="button"
+            onClick={() => setCustomText('The quick brown fox jumps over the lazy dog.')}
+            className="px-2.5 py-1 bg-[#09090b] hover:bg-[#18181b] border border-[#27272a] rounded text-[#a1a1aa] hover:text-[#f4f4f5] cursor-pointer"
+          >
+            Pangram
+          </button>
+          <button
+            type="button"
+            onClick={() => setCustomText('Aa Bb Cc Dd Ee Ff Gg Hh Ii Jj Kk Ll Mm Nn Oo Pp Qq Rr Ss Tt Uu Vv Ww Xx Yy Zz')}
+            className="px-2.5 py-1 bg-[#09090b] hover:bg-[#18181b] border border-[#27272a] rounded text-[#a1a1aa] hover:text-[#f4f4f5] cursor-pointer"
+          >
+            Alphabet
+          </button>
+          <button
+            type="button"
+            onClick={() => setCustomText('0123456789 (!@#$%^&*)')}
+            className="px-2.5 py-1 bg-[#09090b] hover:bg-[#18181b] border border-[#27272a] rounded text-[#a1a1aa] hover:text-[#f4f4f5] cursor-pointer"
+          >
+            Numerals &amp; Symbols
+          </button>
+          <button
+            type="button"
+            onClick={() => setCustomText('TYPOGRAPHY SHOWCASE')}
+            className="px-2.5 py-1 bg-[#09090b] hover:bg-[#18181b] border border-[#27272a] rounded text-[#a1a1aa] hover:text-[#f4f4f5] cursor-pointer"
+          >
+            Showcase Header
+          </button>
+        </div>
       </div>
 
       {/* Real Specimen Display Workspace */}
       <div className="border border-[#27272a] bg-[#121215] rounded-md p-8 sm:p-12 space-y-8 type-grid-pattern">
         <div className="flex items-center justify-between border-b border-[#27272a] pb-3 text-xs font-mono text-[#71717a]">
-          <span>SPECIMEN WORKSPACE</span>
+          <span>SPECIMEN WORKSPACE (Custom Preview Text — Does Not Recompile Font)</span>
           <button
             type="button"
             onClick={handleCopyText}
@@ -192,3 +225,4 @@ export function FontPreviewStage({ generationId }: { generationId: string }) {
     </div>
   );
 }
+

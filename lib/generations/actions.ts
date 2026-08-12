@@ -119,7 +119,26 @@ export async function createGenerationAction(formData: FormData): Promise<Create
     strokeStyle: ['solid', 'handdrawn', 'inline'].includes(strokeStyle) ? strokeStyle : 'solid',
   };
 
+  const styleStrength = Math.max(0, Math.min(100, parseInt((formData.get('styleStrength') as string) || '50', 10)));
+  const variation = Math.max(0, Math.min(100, parseInt((formData.get('variation') as string) || '50', 10)));
+  const slant = (formData.get('slant') as 'Upright' | 'Slight' | 'Italic' | 'Strong Italic') || 'Upright';
+  const spacing = (formData.get('spacing') as 'Tight' | 'Normal' | 'Open') || 'Normal';
+  const seedRaw = formData.get('seed') as string;
+  const seed = seedRaw ? parseInt(seedRaw, 10) : Math.floor(Math.random() * 1000000) + 1;
+
   const parentGenerationId = (formData.get('parentGenerationId') as string) || undefined;
+
+  const generationControls = {
+    styleStrength,
+    variation,
+    weight: (['Thin', 'Light', 'Regular', 'Medium', 'Bold', 'Black'].includes(weight) ? weight : 'Regular') as import('@/lib/font/specification/generationControls').ControlWeight,
+    width: (['Condensed', 'Normal', 'Expanded'].includes(width) ? width : 'Normal') as import('@/lib/font/specification/generationControls').ControlWidth,
+
+    slant,
+    spacing,
+    seed,
+    engineVersion: '1.0.0',
+  };
 
   // 5. Call Generation Service
   const res = await createGenerationJob({
@@ -133,7 +152,10 @@ export async function createGenerationAction(formData: FormData): Promise<Create
     characterSet,
     advancedSettings,
     parentGenerationId,
+    generationControls,
+    seed,
   });
+
 
   if (res.success && res.generationId) {
     revalidatePath('/dashboard');
@@ -171,3 +193,87 @@ export async function deleteGenerationAction(generationId: string): Promise<{ su
   }
   return res;
 }
+
+export async function createVariationAction(
+  parentGenId: string,
+  variationIndex: number = 1
+): Promise<CreateGenerationResult> {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { success: false, code: 'AUTH_REQUIRED', error: 'You must be signed in to generate variations.' };
+  }
+
+  // 1. Fetch parent generation
+  const { data: parentGen, error: fetchErr } = await supabase
+    .from('font_generations')
+    .select('*')
+    .eq('id', parentGenId)
+    .eq('user_id', user.id)
+    .single();
+
+  const parent = parentGen as unknown as import('@/types/database').FontGeneration;
+
+  if (fetchErr || !parent) {
+    return { success: false, code: 'INVALID_CONFIGURATION', error: 'Parent generation not found.' };
+  }
+
+
+  // Max 4 variations limit per generation session
+  if (variationIndex < 1 || variationIndex > 4) {
+    return { success: false, code: 'INVALID_CONFIGURATION', error: 'Variation index must be between 1 and 4.' };
+  }
+
+  const baseControls = (parent.generation_controls as unknown as import('@/lib/font/specification/generationControls').GenerationControls) || {
+    styleStrength: 50,
+    variation: 50,
+    weight: parent.weight || 'Regular',
+    width: parent.width || 'Normal',
+    slant: 'Upright',
+    spacing: 'Normal',
+    engineVersion: '1.0.0',
+  };
+
+  const masterSeed = (parent.seed as number) || 42;
+  const variationSeed = masterSeed + variationIndex * 1337 + 77;
+
+  const variationControls = {
+    ...baseControls,
+    seed: masterSeed,
+    variationSeed,
+  };
+
+  const fontName = parent.font_name ? `${parent.font_name} Var ${variationIndex}` : `AI Font Var ${variationIndex}`;
+
+  const res = await createGenerationJob({
+    userId: user.id,
+    prompt: parent.prompt,
+    fontName,
+    category: parent.category as FontCategory,
+    weight: parent.weight as FontWeight,
+    width: parent.width as FontWidth,
+    style: parent.style as FontStyle,
+    characterSet: parent.character_set as unknown as CharacterSetConfig,
+    advancedSettings: parent.advanced_settings as unknown as AdvancedSettingsConfig,
+    parentGenerationId: parent.parent_generation_id || parent.id,
+    generationControls: variationControls,
+    seed: variationSeed,
+  });
+
+
+  if (res.success && res.generationId) {
+    try {
+      const { GenerationJobService } = await import('@/lib/font/generation/jobProcessor');
+      await GenerationJobService.processJob(res.generationId);
+    } catch (err) {
+      console.error('Variation processing error:', err);
+    }
+  }
+
+  return res;
+}
+

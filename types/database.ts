@@ -97,10 +97,13 @@ export interface FontGeneration {
   version_number?: number;
   generation_type?: 'initial' | 'regeneration' | 'handwriting';
   style_dna?: Json;
+  generation_controls?: Json;
+  seed?: number | null;
   created_at: string;
   updated_at: string;
   completed_at: string | null;
 }
+
 
 export interface GeneratedFile {
   id: string;

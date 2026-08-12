@@ -34,6 +34,9 @@ export async function GET(
     return new NextResponse('Font generation not found', { status: 404 });
   }
 
+  const genRecord = generation as unknown as import('@/types/database').FontGeneration;
+
+
   // 2. Try fetching existing compiled file record
   const { data: fileRecord } = await adminClient
     .from('generated_files')
@@ -57,14 +60,14 @@ export async function GET(
   // 3. Fallback: On-demand compilation if storage file is missing or failed
   if (!fontBuffer) {
     try {
-      const charSet = (generation.character_set as unknown as CharacterSetConfig) || {
+      const charSet = (genRecord.character_set as unknown as CharacterSetConfig) || {
         uppercase: true,
         lowercase: true,
         numbers: true,
         punctuation: true,
       };
 
-      const advSettings = (generation.advanced_settings as unknown as AdvancedSettingsConfig) || {
+      const advSettings = (genRecord.advanced_settings as unknown as AdvancedSettingsConfig) || {
         letterSpacing: 0,
         contrast: 'medium',
         cornerStyle: 'sharp',
@@ -74,18 +77,26 @@ export async function GET(
       const { FontTypographyDirector } = await import('@/lib/font/specification/director');
       const { validateFontStyleDNA } = await import('@/lib/font/specification/dnaValidator');
 
-      const dna = generation.style_dna
-        ? validateFontStyleDNA(generation.style_dna, generation.prompt)
+      let dna = genRecord.style_dna
+        ? validateFontStyleDNA(genRecord.style_dna, genRecord.prompt)
         : FontTypographyDirector.createFallbackDNA(
-            generation.prompt,
-            generation.category,
-            generation.weight,
-            generation.width,
-            generation.style
+            genRecord.prompt,
+            genRecord.category,
+            genRecord.weight,
+            genRecord.width,
+            genRecord.style
           );
 
+      if (genRecord.generation_controls) {
+        const { GenerationControlsEngine } = await import('@/lib/font/specification/generationControls');
+        dna = GenerationControlsEngine.applyGenerationControlsToDNA(
+          dna,
+          genRecord.generation_controls as unknown as import('@/lib/font/specification/generationControls').GenerationControls
+        );
+      }
 
       const legacyStyleSpec = FontTypographyDirector.dnaToLegacyStyleSpec(dna);
+
 
       const stemWidth = Math.round(dna.strokeWidth * dna.unitsPerEm);
       const capHeight = Math.round(dna.proportions.capHeight * dna.unitsPerEm);
@@ -94,11 +105,11 @@ export async function GET(
       const descender = Math.round(dna.proportions.descender * dna.unitsPerEm);
 
       const spec: FontSpecification = {
-        fontName: generation.font_name || 'AIFont',
-        category: generation.category as FontCategory,
-        weight: generation.weight as FontWeight,
-        width: generation.width as FontWidth,
-        style: generation.style as FontStyle,
+        fontName: genRecord.font_name || 'AIFont',
+        category: genRecord.category as FontCategory,
+        weight: genRecord.weight as FontWeight,
+        width: genRecord.width as FontWidth,
+        style: genRecord.style as FontStyle,
         unitsPerEm: dna.unitsPerEm,
         ascender,
         descender,
@@ -110,8 +121,8 @@ export async function GET(
         strokeStyle: advSettings.strokeStyle || 'solid',
         characterSet: charSet,
         advancedSettings: advSettings,
-        designDescription: generation.prompt || 'Generated Font',
-        prompt: generation.prompt,
+        designDescription: genRecord.prompt || 'Generated Font',
+        prompt: genRecord.prompt,
         styleSpec: legacyStyleSpec,
         styleDNA: dna,
       };
@@ -120,9 +131,10 @@ export async function GET(
 
 
       // Async upload to repair storage record in background
-      FontStorageService.uploadAndRecordFontFiles(generation.user_id, generation.id, compiled).catch((e) =>
+      FontStorageService.uploadAndRecordFontFiles(genRecord.user_id, genRecord.id, compiled).catch((e) =>
         console.warn('Background storage repair warning:', e)
       );
+
 
       fontBuffer = compiled[targetFormat] || compiled.woff2 || compiled.ttf;
     } catch (compileErr) {

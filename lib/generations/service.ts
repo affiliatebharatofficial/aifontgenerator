@@ -10,6 +10,8 @@ import type {
 } from '@/types/database';
 import { DAILY_GENERATION_LIMIT } from './constants';
 
+import type { GenerationControls } from '@/lib/font/specification/generationControls';
+
 export interface CreateGenerationInput {
   userId: string;
   prompt: string;
@@ -21,7 +23,10 @@ export interface CreateGenerationInput {
   characterSet: CharacterSetConfig;
   advancedSettings: AdvancedSettingsConfig;
   parentGenerationId?: string;
+  generationControls?: GenerationControls;
+  seed?: number;
 }
+
 
 export interface CreateGenerationResult {
   success: boolean;
@@ -233,10 +238,14 @@ export async function createGenerationJob(input: CreateGenerationInput): Promise
       parent_generation_id: parentId,
       version_number: versionNumber,
       generation_type: generationType,
+      generation_controls: (input.generationControls as unknown as import('@/types/database').Json) || null,
+      seed: input.seed !== undefined ? input.seed : null,
       status: 'pending',
-    })
+    } as any)
     .select()
     .single();
+
+
 
   if (insertError || !job) {
     console.error('Failed to insert generation record:', insertError?.message);

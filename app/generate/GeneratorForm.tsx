@@ -59,10 +59,17 @@ export function GeneratorForm({
     ? (parentGen.advanced_settings as unknown as AdvancedSettingsConfig)
     : DEFAULT_ADVANCED_SETTINGS;
 
+  const [styleStrength, setStyleStrength] = useState<number>(50);
+  const [variation, setVariation] = useState<number>(50);
+  const [slant, setSlant] = useState<'Upright' | 'Slight' | 'Italic' | 'Strong Italic'>('Upright');
+  const [spacing, setSpacing] = useState<'Tight' | 'Normal' | 'Open'>('Normal');
+
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [generationStage, setGenerationStage] = useState<string>('Idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const isLimitReached = usageCount >= usageLimit;
+
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -70,6 +77,7 @@ export function GeneratorForm({
 
     setErrorMessage(null);
     setIsSubmitting(true);
+    setGenerationStage('Analyzing Prompt');
 
     const formData = new FormData();
     formData.append('prompt', prompt);
@@ -78,6 +86,10 @@ export function GeneratorForm({
     formData.append('weight', weight);
     formData.append('width', width);
     formData.append('style', style);
+    formData.append('styleStrength', styleStrength.toString());
+    formData.append('variation', variation.toString());
+    formData.append('slant', slant);
+    formData.append('spacing', spacing);
 
     if (parentGen) {
       formData.append('parentGenerationId', parentGen.id);
@@ -95,10 +107,15 @@ export function GeneratorForm({
     formData.append('strokeStyle', advancedSettings.strokeStyle);
 
     try {
+      setTimeout(() => setGenerationStage('Building Style'), 800);
+      setTimeout(() => setGenerationStage('Generating Glyphs'), 1800);
+      setTimeout(() => setGenerationStage('Compiling Font'), 3200);
+
       const res = await createGenerationAction(formData);
       if (res && !res.success) {
         setErrorMessage(res.error || 'Failed to submit generation request.');
         setIsSubmitting(false);
+        setGenerationStage('Idle');
       }
     } catch (err: unknown) {
       if (err && typeof err === 'object' && 'digest' in err) {
@@ -106,7 +123,9 @@ export function GeneratorForm({
       }
       setErrorMessage('An unexpected error occurred during submission.');
       setIsSubmitting(false);
+      setGenerationStage('Idle');
     }
+
   }
 
   return (
@@ -225,6 +244,80 @@ export function GeneratorForm({
               </select>
             </div>
 
+            {/* Advanced Generation Controls Header */}
+            <div className="pt-4 border-t border-[#27272a]">
+              <span className="text-[10px] font-mono font-bold uppercase text-[#e05638] tracking-widest block mb-3">
+                Style DNA Micro-Controls
+              </span>
+
+              {/* Style Strength */}
+              <div className="space-y-1.5 mb-3">
+                <div className="flex justify-between text-[11px]">
+                  <label className="text-[#a1a1aa] uppercase font-semibold">Style Strength</label>
+                  <span className="font-bold text-[#f4f4f5]">{styleStrength}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={styleStrength}
+                  onChange={(e) => setStyleStrength(Number(e.target.value))}
+                  disabled={isSubmitting || isLimitReached}
+                  className="w-full accent-[#e05638] cursor-pointer"
+                />
+              </div>
+
+              {/* Creativity / Variation */}
+              <div className="space-y-1.5 mb-3">
+                <div className="flex justify-between text-[11px]">
+                  <label className="text-[#a1a1aa] uppercase font-semibold">Creativity / Variation</label>
+                  <span className="font-bold text-[#f4f4f5]">{variation}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={variation}
+                  onChange={(e) => setVariation(Number(e.target.value))}
+                  disabled={isSubmitting || isLimitReached}
+                  className="w-full accent-[#e05638] cursor-pointer"
+                />
+              </div>
+
+              {/* Slant */}
+              <div className="space-y-1.5 mb-3">
+                <label className="block text-[#a1a1aa] font-semibold uppercase text-[11px]">Slant</label>
+                <select
+                  value={slant}
+                  onChange={(e) => setSlant(e.target.value as 'Upright' | 'Slight' | 'Italic' | 'Strong Italic')}
+                  disabled={isSubmitting || isLimitReached}
+                  className="w-full px-3 py-2 bg-[#09090b] border border-[#27272a] rounded-md text-[#f4f4f5] focus:outline-none focus:border-[#e05638]"
+                >
+                  <option value="Upright">Upright (0°)</option>
+                  <option value="Slight">Slight (4.5°)</option>
+                  <option value="Italic">Italic (11.5°)</option>
+                  <option value="Strong Italic">Strong Italic (18.3°)</option>
+                </select>
+              </div>
+
+              {/* Spacing */}
+              <div className="space-y-1.5">
+                <label className="block text-[#a1a1aa] font-semibold uppercase text-[11px]">Tracking / Spacing</label>
+                <select
+                  value={spacing}
+                  onChange={(e) => setSpacing(e.target.value as 'Tight' | 'Normal' | 'Open')}
+                  disabled={isSubmitting || isLimitReached}
+                  className="w-full px-3 py-2 bg-[#09090b] border border-[#27272a] rounded-md text-[#f4f4f5] focus:outline-none focus:border-[#e05638]"
+                >
+                  <option value="Tight">Tight (-20em)</option>
+                  <option value="Normal">Normal (Default)</option>
+                  <option value="Open">Open (+40em)</option>
+                </select>
+              </div>
+
+            </div>
+
+
             {/* Character Set Checkboxes */}
             <div className="pt-4 border-t border-[#27272a] space-y-2">
               <label className="block text-[#a1a1aa] font-semibold uppercase text-[11px]">
@@ -332,10 +425,11 @@ export function GeneratorForm({
                   >
                     {isSubmitting ? (
                       <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>Synthesizing Outlines...</span>
+                        <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+                        <span className="text-amber-300 font-bold uppercase">{generationStage}...</span>
                       </>
                     ) : (
+
                       <>
                         <span>GENERATE TYPEFACE</span>
                         <ArrowRight className="w-4 h-4" />
