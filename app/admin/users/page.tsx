@@ -54,8 +54,8 @@ export default async function AdminUsersPage({
 
   // Fetch subscriptions & limit overrides for the displayed profiles
   const profileIds = profiles.map((p) => p.id);
-  let subMap: Record<string, { planName: string; planLimit: number }> = {};
-  let overrideMap: Record<string, number> = {};
+  const subMap: Record<string, { planName: string; planLimit: number }> = {};
+  const overrideMap: Record<string, number> = {};
 
   if (profileIds.length > 0) {
     try {

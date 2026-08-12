@@ -6,6 +6,9 @@ import type {
   CharacterSetConfig,
   AdvancedSettingsConfig,
 } from '@/types/database';
+import type { FontStyleDNA } from './dna';
+
+export * from './dna';
 
 export type AIProvider = 'openai' | 'gemini' | 'openrouter' | 'deepseek';
 
@@ -111,4 +114,6 @@ export interface FontSpecification {
   designDescription: string;
   prompt?: string;
   styleSpec?: FontStyleSpecification;
+  styleDNA?: FontStyleDNA;
 }
+

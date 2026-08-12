@@ -1,4 +1,4 @@
-import { createAdminClient, createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/server';
 import { NextResponse, type NextRequest } from 'next/server';
 import { FontCompilerService } from '@/lib/font/compiler/fontCompiler';
 import { FontStorageService } from '@/lib/font/storage/fontStorage';
@@ -71,13 +71,27 @@ export async function GET(
         strokeStyle: 'solid',
       };
 
-      let stemWidth = 80;
-      if (generation.weight === 'Thin' || generation.weight === 'Extra Light') stemWidth = 40;
-      if (generation.weight === 'Light') stemWidth = 60;
-      if (generation.weight === 'Medium') stemWidth = 100;
-      if (generation.weight === 'Semi Bold') stemWidth = 130;
-      if (generation.weight === 'Bold') stemWidth = 160;
-      if (generation.weight === 'Extra Bold' || generation.weight === 'Black') stemWidth = 190;
+      const { FontTypographyDirector } = await import('@/lib/font/specification/director');
+      const { validateFontStyleDNA } = await import('@/lib/font/specification/dnaValidator');
+
+      const dna = generation.style_dna
+        ? validateFontStyleDNA(generation.style_dna, generation.prompt)
+        : FontTypographyDirector.createFallbackDNA(
+            generation.prompt,
+            generation.category,
+            generation.weight,
+            generation.width,
+            generation.style
+          );
+
+
+      const legacyStyleSpec = FontTypographyDirector.dnaToLegacyStyleSpec(dna);
+
+      const stemWidth = Math.round(dna.strokeWidth * dna.unitsPerEm);
+      const capHeight = Math.round(dna.proportions.capHeight * dna.unitsPerEm);
+      const xHeight = Math.round(dna.proportions.xHeight * dna.unitsPerEm);
+      const ascender = Math.round(dna.proportions.ascender * dna.unitsPerEm);
+      const descender = Math.round(dna.proportions.descender * dna.unitsPerEm);
 
       const spec: FontSpecification = {
         fontName: generation.font_name || 'AIFont',
@@ -85,11 +99,11 @@ export async function GET(
         weight: generation.weight as FontWeight,
         width: generation.width as FontWidth,
         style: generation.style as FontStyle,
-        unitsPerEm: 1000,
-        ascender: 800,
-        descender: -200,
-        capHeight: 700,
-        xHeight: 500,
+        unitsPerEm: dna.unitsPerEm,
+        ascender,
+        descender,
+        capHeight,
+        xHeight,
         stemWidth,
         cornerStyle: advSettings.cornerStyle || 'sharp',
         contrast: advSettings.contrast || 'medium',
@@ -98,9 +112,12 @@ export async function GET(
         advancedSettings: advSettings,
         designDescription: generation.prompt || 'Generated Font',
         prompt: generation.prompt,
+        styleSpec: legacyStyleSpec,
+        styleDNA: dna,
       };
 
       const compiled = await FontCompilerService.compileFont(spec);
+
 
       // Async upload to repair storage record in background
       FontStorageService.uploadAndRecordFontFiles(generation.user_id, generation.id, compiled).catch((e) =>

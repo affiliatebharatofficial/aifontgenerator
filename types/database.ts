@@ -96,6 +96,7 @@ export interface FontGeneration {
   parent_generation_id?: string | null;
   version_number?: number;
   generation_type?: 'initial' | 'regeneration' | 'handwriting';
+  style_dna?: Json;
   created_at: string;
   updated_at: string;
   completed_at: string | null;
@@ -260,6 +261,7 @@ export type Database = {
           parent_generation_id: string | null;
           version_number: number;
           generation_type: string;
+          style_dna?: Json;
         };
         Insert: {
           advanced_settings?: Json;
@@ -280,6 +282,7 @@ export type Database = {
           parent_generation_id?: string | null;
           version_number?: number;
           generation_type?: string;
+          style_dna?: Json;
         };
         Update: {
           advanced_settings?: Json;
@@ -300,6 +303,7 @@ export type Database = {
           parent_generation_id?: string | null;
           version_number?: number;
           generation_type?: string;
+          style_dna?: Json;
         };
         Relationships: [
           {

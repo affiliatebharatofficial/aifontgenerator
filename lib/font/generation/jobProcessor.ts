@@ -75,6 +75,7 @@ export class GenerationJobService {
         .from('font_generations')
         .update({
           font_name: spec.fontName,
+          style_dna: (spec.styleDNA as unknown as import('@/types/database').Json) || null,
           status: 'completed',
           completed_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),

@@ -2,15 +2,7 @@ import type {
   FontSpecification,
   FontStyleSpecification,
   StyleFamily,
-  StrokeModel,
-  SerifStyle,
-  TerminalStyle,
-  CornerStyle,
-  CurveModel,
-  CounterStyle,
-  BaselineBehavior,
 } from './types';
-import { AIProviderService } from '@/lib/ai/provider-service';
 import type {
   FontCategory,
   FontWeight,
@@ -19,6 +11,7 @@ import type {
   CharacterSetConfig,
   AdvancedSettingsConfig,
 } from '@/types/database';
+
 
 export interface GenerateSpecificationParams {
   prompt: string;
@@ -389,7 +382,7 @@ export function validateSpecificationOutput(
   );
 
   // 2. Extract and merge raw AI styleSpec if present
-  let styleSpec: FontStyleSpecification = { ...fallbackStyleSpec };
+  const styleSpec: FontStyleSpecification = { ...fallbackStyleSpec };
 
   if (raw.styleSpec && typeof raw.styleSpec === 'object') {
     const rawStyle = raw.styleSpec as Record<string, unknown>;
@@ -497,40 +490,22 @@ export function validateSpecificationOutput(
 }
 
 /**
- * Unified AI Provider abstraction layer.
+ * Unified AI Typography Director & Font Specification Synthesis.
  */
 export async function generateFontSpecification(
   params: GenerateSpecificationParams
 ): Promise<FontSpecification> {
-  try {
-    const aiResult = await AIProviderService.generateFontSpecification(params.prompt, {
-      category: params.category,
-      weight: params.weight,
-      width: params.width,
-      style: params.style,
-      requestType: 'font_specification',
-    });
+  const { FontTypographyDirector } = await import('./director');
 
-    const spec = aiResult.specification;
-
-    return validateSpecificationOutput(
-      {
-        fontName: spec.fontName || params.fontName,
-        stemWidth: spec.stemWidth,
-        styleSpec: spec.styleSpec,
-        designDescription: `Synthesized via ${aiResult.providerUsed} (${aiResult.modelUsed})`,
-      },
-      params
-    );
-  } catch (err) {
-    console.warn('AI provider generation failed or unconfigured, falling back to rule-based parser:', err);
-
-    return validateSpecificationOutput(
-      {
-        fontName: params.fontName || 'AIFont',
-        designDescription: 'Synthesized via rule-based typographic geometry parser',
-      },
-      params
-    );
-  }
+  return FontTypographyDirector.synthesizeStyleSpecification({
+    prompt: params.prompt,
+    fontName: params.fontName,
+    category: params.category,
+    weight: params.weight,
+    width: params.width,
+    style: params.style,
+    characterSet: params.characterSet,
+    advancedSettings: params.advancedSettings,
+  });
 }
+

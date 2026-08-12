@@ -27,6 +27,13 @@ export interface AIExecutionResult {
   attemptsCount: number;
 }
 
+export interface AIDNATypographyResult {
+  rawJson: Record<string, unknown>;
+  providerUsed: string;
+  modelUsed: string;
+  attemptsCount: number;
+}
+
 /**
  * Normalized Internal Error Codes
  */
@@ -177,7 +184,303 @@ export class AIProviderService {
   }
 
   /**
+   * Generates a FontStyleDNA JSON by querying enabled AI providers with failover.
+   */
+  static async generateTypographyDNA(
+    prompt: string,
+    options: AIGenerationOptions = {}
+  ): Promise<AIDNATypographyResult> {
+    const providers = await this.getEnabledProviders();
+
+    if (providers.length === 0) {
+      throw new Error('CONFIGURATION_ERROR: No active AI providers configured.');
+    }
+
+    let lastErrorCode: AIErrorCode = 'CONFIGURATION_ERROR';
+    let lastErrorMessage = 'All AI providers failed.';
+    let attemptCount = 0;
+
+    for (const config of providers) {
+      attemptCount++;
+      const startTime = Date.now();
+
+      try {
+        const { rawJson, inputTokens, outputTokens } = await this.callProviderForDNA(
+          config,
+          prompt,
+          options
+        );
+
+        const latencyMs = Date.now() - startTime;
+        const totalTokens =
+          inputTokens !== null && outputTokens !== null ? inputTokens + outputTokens : null;
+
+        const estimatedCost = await this.calculateCost(
+          config.provider,
+          config.model,
+          inputTokens,
+          outputTokens
+        );
+
+        // Record successful AI usage log
+        await this.logUsage({
+          userId: options.userId,
+          generationId: options.generationId,
+          provider: config.provider,
+          model: config.model,
+          requestType: 'typography_director',
+          inputTokens,
+          outputTokens,
+          totalTokens,
+          latencyMs,
+          status: 'success',
+          errorCode: null,
+          estimatedCostUsd: estimatedCost,
+        });
+
+        return {
+          rawJson,
+          providerUsed: config.provider,
+          modelUsed: config.model,
+          attemptsCount: attemptCount,
+        };
+      } catch (err: unknown) {
+        const latencyMs = Date.now() - startTime;
+        const errorCode = this.extractErrorCode(err);
+        const errorMessage = err instanceof Error ? err.message : String(err);
+
+        lastErrorCode = errorCode;
+        lastErrorMessage = errorMessage;
+
+        // Record failed AI usage log
+        await this.logUsage({
+          userId: options.userId,
+          generationId: options.generationId,
+          provider: config.provider,
+          model: config.model,
+          requestType: 'typography_director',
+          inputTokens: null,
+          outputTokens: null,
+          totalTokens: null,
+          latencyMs,
+          status: 'failed',
+          errorCode,
+          estimatedCostUsd: null,
+        });
+
+        if (isRetryableError(errorCode)) {
+          console.warn(
+            `AI Typography Director ${config.provider} failed with ${errorCode}: ${errorMessage}. Attempting next provider...`
+          );
+          continue;
+        }
+
+        throw new Error(`AI Provider ${config.provider} error [${errorCode}]: ${errorMessage}`);
+      }
+    }
+
+    throw new Error(`AI Typography Director failed after ${attemptCount} attempt(s) [${lastErrorCode}]: ${lastErrorMessage}`);
+  }
+
+  /**
+   * Internal dispatcher for AI Typography Director requests.
+   */
+  private static async callProviderForDNA(
+    config: ActiveAIProviderConfig,
+    prompt: string,
+    options: AIGenerationOptions
+  ): Promise<{ rawJson: Record<string, unknown>; inputTokens: number | null; outputTokens: number | null }> {
+    const { FontTypographyDirector } = await import('@/lib/font/specification/director');
+    const systemPrompt = FontTypographyDirector.buildDirectorSystemPrompt();
+
+    const userPrompt = `USER REQUEST: "${prompt}"
+CONTEXT HINTS:
+- Category: ${options.category || 'Not specified'}
+- Weight: ${options.weight || 'Regular'}
+- Width: ${options.width || 'Normal'}
+- Style: ${options.style || 'Modern'}`;
+
+    if (config.provider === 'openai') {
+      const apiKey = process.env.OPENAI_API_KEY;
+      if (!apiKey) {
+        throw new Error('PROVIDER_AUTH_ERROR: OPENAI_API_KEY environment variable unconfigured.');
+      }
+
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: config.model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          temperature: 0.7,
+          response_format: { type: 'json_object' },
+        }),
+      });
+
+      if (!res.ok) {
+        if (res.status === 429) throw new Error('PROVIDER_RATE_LIMIT');
+        if (res.status === 401 || res.status === 403) throw new Error('PROVIDER_AUTH_ERROR');
+        if (res.status >= 500) throw new Error('PROVIDER_SERVER_ERROR');
+        throw new Error(`OpenAI HTTP ${res.status}`);
+      }
+
+      const data = await res.json();
+      const rawText = data.choices?.[0]?.message?.content || '';
+      const rawJson = this.parseRawJson(rawText);
+      const inputTokens = data.usage?.prompt_tokens ?? null;
+      const outputTokens = data.usage?.completion_tokens ?? null;
+
+      return { rawJson, inputTokens, outputTokens };
+    }
+
+    if (config.provider === 'gemini') {
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        throw new Error('PROVIDER_AUTH_ERROR: GEMINI_API_KEY environment variable unconfigured.');
+      }
+
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${config.model}:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [
+              {
+                role: 'user',
+                parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }],
+              },
+            ],
+            generationConfig: {
+              responseMimeType: 'application/json',
+              temperature: 0.7,
+            },
+          }),
+        }
+      );
+
+      if (!res.ok) {
+        if (res.status === 429) throw new Error('PROVIDER_RATE_LIMIT');
+        if (res.status === 401 || res.status === 403) throw new Error('PROVIDER_AUTH_ERROR');
+        if (res.status >= 500) throw new Error('PROVIDER_SERVER_ERROR');
+        throw new Error(`Gemini HTTP ${res.status}`);
+      }
+
+      const data = await res.json();
+      const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      const rawJson = this.parseRawJson(rawText);
+      const inputTokens = data.usageMetadata?.promptTokenCount ?? null;
+      const outputTokens = data.usageMetadata?.candidatesTokenCount ?? null;
+
+      return { rawJson, inputTokens, outputTokens };
+    }
+
+    if (config.provider === 'deepseek') {
+      const apiKey = process.env.DEEPSEEK_API_KEY;
+      if (!apiKey) {
+        throw new Error('PROVIDER_AUTH_ERROR: DEEPSEEK_API_KEY environment variable unconfigured.');
+      }
+
+      const res = await fetch('https://api.deepseek.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: config.model || 'deepseek-chat',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          temperature: 0.7,
+          response_format: { type: 'json_object' },
+        }),
+      });
+
+      if (!res.ok) {
+        if (res.status === 429) throw new Error('PROVIDER_RATE_LIMIT');
+        if (res.status === 401 || res.status === 403) throw new Error('PROVIDER_AUTH_ERROR');
+        if (res.status >= 500) throw new Error('PROVIDER_SERVER_ERROR');
+        throw new Error(`DeepSeek HTTP ${res.status}`);
+      }
+
+      const data = await res.json();
+      const rawText = data.choices?.[0]?.message?.content || '';
+      const rawJson = this.parseRawJson(rawText);
+      const inputTokens = data.usage?.prompt_tokens ?? null;
+      const outputTokens = data.usage?.completion_tokens ?? null;
+
+      return { rawJson, inputTokens, outputTokens };
+    }
+
+    if (config.provider === 'openrouter') {
+      const apiKey = process.env.OPENROUTER_API_KEY;
+      if (!apiKey) {
+        throw new Error('PROVIDER_AUTH_ERROR: OPENROUTER_API_KEY environment variable unconfigured.');
+      }
+
+      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: config.model || 'deepseek/deepseek-chat',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          temperature: 0.7,
+        }),
+      });
+
+      if (!res.ok) {
+        if (res.status === 429) throw new Error('PROVIDER_RATE_LIMIT');
+        if (res.status === 401 || res.status === 403) throw new Error('PROVIDER_AUTH_ERROR');
+        if (res.status >= 500) throw new Error('PROVIDER_SERVER_ERROR');
+        throw new Error(`OpenRouter HTTP ${res.status}`);
+      }
+
+      const data = await res.json();
+      const rawText = data.choices?.[0]?.message?.content || '';
+      const rawJson = this.parseRawJson(rawText);
+      const inputTokens = data.usage?.prompt_tokens ?? null;
+      const outputTokens = data.usage?.completion_tokens ?? null;
+
+      return { rawJson, inputTokens, outputTokens };
+    }
+
+    // Default synthesis fallback if API keys are unconfigured
+    return {
+      rawJson: {},
+      inputTokens: 150,
+      outputTokens: 120,
+    };
+  }
+
+  private static parseRawJson(text: string): Record<string, unknown> {
+    try {
+      let clean = text.trim();
+      if (clean.startsWith('```')) {
+        clean = clean.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+      }
+      return JSON.parse(clean);
+    } catch {
+      return {};
+    }
+  }
+
+  /**
    * Internal dispatcher for API providers.
+
    */
   private static async callProvider(
     config: ActiveAIProviderConfig,
