@@ -10,11 +10,18 @@ import {
   Check,
 } from 'lucide-react';
 
-export function FontPreviewStage({ generationId }: { generationId: string }) {
+export function FontPreviewStage({
+  generationId,
+  isDevanagari = false,
+}: {
+  generationId: string;
+  isDevanagari?: boolean;
+}) {
   const fontFamilyName = `GeneratedFont_${generationId.replace(/[^a-zA-Z0-9]/g, '')}`;
-  const fontUrl = `/api/fonts/preview/${generationId}`;
 
-  const defaultSpecimen = 'The quick brown fox jumps over the lazy dog.';
+  const defaultSpecimen = isDevanagari
+    ? 'नमस्ते भारत • क्रांति प्राकृतिक स्वतंत्रता संस्कृति (क्र क्ष ज्ञ त्र श्र)'
+    : 'The quick brown fox jumps over the lazy dog.';
   const [customText, setCustomText] = useState(defaultSpecimen);
   const [fontSize, setFontSize] = useState(56);
   const [letterSpacing, setLetterSpacing] = useState(0);
@@ -26,6 +33,7 @@ export function FontPreviewStage({ generationId }: { generationId: string }) {
 
   useEffect(() => {
     let isMounted = true;
+    const fontUrl = `/api/fonts/preview/${generationId}?v=${generationId}`;
     const fontFace = new FontFace(fontFamilyName, `url("${fontUrl}") format("woff2")`);
 
     fontFace
@@ -44,7 +52,7 @@ export function FontPreviewStage({ generationId }: { generationId: string }) {
       isMounted = false;
       document.fonts.delete(fontFace);
     };
-  }, [fontFamilyName, fontUrl]);
+  }, [fontFamilyName, generationId]);
 
   function handleCopyText() {
     if (!customText) return;
@@ -58,7 +66,7 @@ export function FontPreviewStage({ generationId }: { generationId: string }) {
       <style>{`
         @font-face {
           font-family: "${fontFamilyName}";
-          src: url("${fontUrl}") format("woff2");
+          src: url("/api/fonts/preview/${generationId}?v=${generationId}") format("woff2");
           font-display: swap;
         }
       `}</style>
@@ -168,7 +176,21 @@ export function FontPreviewStage({ generationId }: { generationId: string }) {
             onClick={() => setCustomText('The quick brown fox jumps over the lazy dog.')}
             className="px-2.5 py-1 bg-[#09090b] hover:bg-[#18181b] border border-[#27272a] rounded text-[#a1a1aa] hover:text-[#f4f4f5] cursor-pointer"
           >
-            Pangram
+            Latin Pangram
+          </button>
+          <button
+            type="button"
+            onClick={() => setCustomText('नमस्ते भारत • क्रांति प्राकृतिक स्वतंत्रता संस्कृति')}
+            className="px-2.5 py-1 bg-[#09090b] hover:bg-[#18181b] border border-[#27272a] rounded text-[#a1a1aa] hover:text-[#f4f4f5] cursor-pointer"
+          >
+            Devanagari Pangram
+          </button>
+          <button
+            type="button"
+            onClick={() => setCustomText('क्र क्ष ज्ञ त्र श्र द्य ध्य स्त्र क्त त्त न्त म्प ण्ड ष्ट स्व')}
+            className="px-2.5 py-1 bg-[#09090b] hover:bg-[#18181b] border border-[#27272a] rounded text-[#a1a1aa] hover:text-[#f4f4f5] cursor-pointer"
+          >
+            Conjunct Test
           </button>
           <button
             type="button"

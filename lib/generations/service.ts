@@ -251,7 +251,7 @@ export async function createGenerationJob(input: CreateGenerationInput): Promise
 
   const firstAttempt = await supabase
     .from('font_generations')
-    .insert([primaryPayload] as any)
+    .insert([primaryPayload] as unknown[])
     .select()
     .single();
 
@@ -266,7 +266,7 @@ export async function createGenerationJob(input: CreateGenerationInput): Promise
 
     const retryAttempt = await supabase
       .from('font_generations')
-      .insert([primaryPayload] as any)
+      .insert([primaryPayload] as unknown[])
       .select()
       .single();
 

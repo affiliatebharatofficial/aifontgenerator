@@ -53,7 +53,36 @@ export async function GET(
       .download(fileRecord.storage_path);
 
     if (!downloadError && downloadedBlob) {
-      fontBuffer = Buffer.from(await downloadedBlob.arrayBuffer());
+      const downloadedBuffer = Buffer.from(await downloadedBlob.arrayBuffer());
+      let needsRecompile = false;
+
+      // Verify whether stored font has GSUB tables if prompt/category is Devanagari
+      const isDevanagariGen =
+        genRecord.category === 'Devanagari' ||
+        Boolean((genRecord.character_set as unknown as CharacterSetConfig)?.devanagari) ||
+        (genRecord.prompt || '').toLowerCase().includes('devanagari') ||
+        (genRecord.prompt || '').toLowerCase().includes('hindi');
+
+      if (isDevanagariGen) {
+        try {
+          const { parse } = await import('opentype.js');
+          const arrayBuf = downloadedBuffer.buffer.slice(
+            downloadedBuffer.byteOffset,
+            downloadedBuffer.byteOffset + downloadedBuffer.byteLength
+          );
+          const parsed = parse(arrayBuf);
+          if (!(parsed.tables as Record<string, unknown>)?.gsub) {
+            console.warn(`Stored font ${generationId} lacks GSUB tables. Re-compiling with Devanagari shaping engine...`);
+            needsRecompile = true;
+          }
+        } catch {
+          needsRecompile = true;
+        }
+      }
+
+      if (!needsRecompile) {
+        fontBuffer = downloadedBuffer;
+      }
     }
   }
 

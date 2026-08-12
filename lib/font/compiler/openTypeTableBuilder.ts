@@ -64,29 +64,31 @@ export class OpenTypeTableBuilder {
         {
           tag: 'deva',
           script: {
-            defaultLangSys: { reqFeatureIndex: 65535, featureIndexes: [0, 1, 2] },
+            defaultLangSys: { reqFeatureIndex: 65535, featureIndexes: [0, 1, 2, 3, 4] },
             langSysRecords: [],
           },
         },
         {
           tag: 'dev2',
           script: {
-            defaultLangSys: { reqFeatureIndex: 65535, featureIndexes: [0, 1, 2] },
+            defaultLangSys: { reqFeatureIndex: 65535, featureIndexes: [0, 1, 2, 3, 4] },
             langSysRecords: [],
           },
         },
         {
           tag: 'DFLT',
           script: {
-            defaultLangSys: { reqFeatureIndex: 65535, featureIndexes: [0, 1, 2] },
+            defaultLangSys: { reqFeatureIndex: 65535, featureIndexes: [0, 1, 2, 3, 4] },
             langSysRecords: [],
           },
         },
       ],
       features: [
-        { tag: 'liga', feature: { featureParams: 0, lookupListIndexes: [0] } },
+        { tag: 'rkrf', feature: { featureParams: 0, lookupListIndexes: [0] } },
+        { tag: 'cjct', feature: { featureParams: 0, lookupListIndexes: [0] } },
         { tag: 'akhn', feature: { featureParams: 0, lookupListIndexes: [0] } },
         { tag: 'nukt', feature: { featureParams: 0, lookupListIndexes: [0] } },
+        { tag: 'liga', feature: { featureParams: 0, lookupListIndexes: [0] } },
       ],
       lookups: [
         {

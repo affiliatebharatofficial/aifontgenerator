@@ -2,6 +2,7 @@ import { FontCompilerService } from '../lib/font/compiler/fontCompiler';
 import { CoverageCalculator } from '../lib/font/validator/coverageCalculator';
 import { DEVANAGARI_CONJUNCT_RULES } from '../lib/font/shaping/devanagariShaper';
 import type { FontSpecification } from '../lib/font/specification/types';
+import type { FontStyleDNA } from '../lib/font/specification/dna';
 import { parse } from 'opentype.js';
 
 async function runDevanagariShapingTests() {
@@ -55,16 +56,29 @@ async function runDevanagariShapingTests() {
     characterSet: { uppercase: true, lowercase: true, numbers: true, punctuation: true, devanagari: true },
     styleDNA: {
       styleFamily: 'HORROR',
-      unitsPerEm: 1000,
       strokeModel: 'MODULATED',
+      terminalStyle: 'SHARP',
+      cornerStyle: 'IRREGULAR',
+      curveModel: 'ANGULAR',
+      counterStyle: 'NARROW',
+      baselineBehavior: 'IRREGULAR',
+      spacing: 'TIGHT',
+      decorationLevel: 'STRONG',
+      glyphVariation: 'STRONG',
+      visualComplexity: 'COMPLEX',
+      strokeWidth: 0.12,
+      strokeContrast: 0.55,
+      roundness: 0.08,
+      angularity: 0.90,
+      distortion: 0.30,
+      symmetry: 0.60,
+      slant: 0.05,
       proportions: { ascender: 0.8, descender: -0.2, capHeight: 0.7, xHeight: 0.5, width: 0.6 },
-      strokeWidth: { stem: 120, hairline: 40, contrast: 0.3 },
-      curvature: { roundness: 0.1, cornerRounding: 0.05, tension: 0.9 },
-      complexity: { cornerCount: 16, strokeSeparation: 0.8 },
-      serif: { hasSerif: false, serifType: 'NONE', serifLength: 0, serifWidth: 0, bracketRounding: 0 },
-      ornament: { hasDrips: true, dripCount: 3, dripLength: 0.2, spikiness: 0.8 },
-    } as any,
-  } as any;
+      unitsPerEm: 1000,
+      designIntent: 'Horror Devanagari shaping test',
+      generatedVia: 'fallback_rule',
+    } as FontStyleDNA,
+  } as Omit<FontSpecification, 'cornerStyle' | 'contrast' | 'strokeStyle' | 'advancedSettings' | 'designDescription'> as unknown as FontSpecification;
 
   const startTime = Date.now();
   const compiledBuffers = await FontCompilerService.compileFont(horrorSpec);
@@ -143,9 +157,10 @@ async function runDevanagariShapingTests() {
     styleDNA: {
       ...horrorSpec.styleDNA!,
       styleFamily: 'BUBBLE',
-      strokeModel: 'MODULATED',
-      curvature: { roundness: 0.95, cornerRounding: 0.9, tension: 0.4 },
-    } as any,
+      strokeModel: 'MONOLINE',
+      roundness: 0.95,
+      angularity: 0.05,
+    } as FontStyleDNA,
   };
 
   const bubbleBuffers = await FontCompilerService.compileFont(bubbleSpec);
@@ -158,8 +173,8 @@ async function runDevanagariShapingTests() {
       ...horrorSpec.styleDNA!,
       styleFamily: 'SERIF',
       strokeModel: 'HIGH_CONTRAST',
-      serif: { hasSerif: true, serifType: 'BRACKETED', serifLength: 0.15, serifWidth: 0.1, bracketRounding: 0.5 },
-    } as any,
+      strokeContrast: 0.80,
+    } as FontStyleDNA,
   };
 
   const luxuryBuffers = await FontCompilerService.compileFont(luxurySpec);

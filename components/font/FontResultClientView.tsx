@@ -120,7 +120,16 @@ export function FontResultClientView({
             01 • INTERACTIVE TYPE WORKSPACE
           </h2>
         </div>
-        <FontPreviewStage key={selectedGen.id} generationId={selectedGen.id} />
+        <FontPreviewStage
+          key={selectedGen.id}
+          generationId={selectedGen.id}
+          isDevanagari={
+            selectedGen.category === 'Devanagari' ||
+            charSet?.devanagari === true ||
+            (selectedGen.prompt || '').toLowerCase().includes('devanagari') ||
+            (selectedGen.prompt || '').toLowerCase().includes('hindi')
+          }
+        />
       </section>
 
       {/* Font Quality & Validation Report */}

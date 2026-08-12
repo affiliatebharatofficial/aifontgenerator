@@ -58,7 +58,7 @@ export class FontCompilerService {
     // Build and attach OpenType GSUB table for Devanagari shaping & ligatures
     const gsubTable = OpenTypeTableBuilder.buildGsubTable(glyphs);
     if (gsubTable) {
-      font.tables.gsub = gsubTable as any;
+      font.tables.gsub = gsubTable as unknown as typeof font.tables.gsub;
     }
 
 
