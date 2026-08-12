@@ -148,3 +148,59 @@ export async function updateProfileAction(formData: FormData): Promise<AuthActio
   revalidatePath('/dashboard/profile');
   return { success: true };
 }
+
+/**
+ * Server Action: Request Password Reset Link via Email
+ */
+export async function requestPasswordResetAction(formData: FormData): Promise<AuthActionResult> {
+  const email = (formData.get('email') as string)?.trim();
+
+  if (!email) {
+    return { success: false, error: 'Please enter a valid email address.' };
+  }
+
+  const supabase = await createClient();
+
+  // Dynamic origin resolution for reset callback
+  const origin = process.env.NEXT_PUBLIC_SITE_URL || 'https://ai-fontgenerator.com';
+  const redirectTo = `${origin}/update-password`;
+
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo,
+  });
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  return { success: true };
+}
+
+/**
+ * Server Action: Update User Password (New Password Submission)
+ */
+export async function updatePasswordAction(formData: FormData): Promise<AuthActionResult> {
+  const password = formData.get('password') as string;
+  const confirmPassword = formData.get('confirmPassword') as string;
+
+  if (!password || password.length < 6) {
+    return { success: false, error: 'Password must be at least 6 characters long.' };
+  }
+
+  if (password !== confirmPassword) {
+    return { success: false, error: 'Passwords do not match. Please re-enter.' };
+  }
+
+  const supabase = await createClient();
+
+  const { error } = await supabase.auth.updateUser({
+    password,
+  });
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath('/', 'layout');
+  redirect('/login?message=Password+updated+successfully.+Please+sign+in.');
+}
