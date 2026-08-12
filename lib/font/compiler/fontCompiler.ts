@@ -31,19 +31,36 @@ export class FontCompilerService {
     const familyName = (spec.fontName || 'AIFont').replace(/[^a-zA-Z0-9\s_-]/g, '');
     const styleName = (spec.weight || 'Regular').replace(/[^a-zA-Z0-9\s_-]/g, '');
 
-    // 2. Build opentype.Font instance
+    // 2. Build opentype.Font instance with clean PostScript metadata
     const font = new Font({
       familyName,
       styleName,
-      unitsPerEm: spec.unitsPerEm,
+      unitsPerEm: spec.unitsPerEm || 1000,
       ascender: spec.ascender,
       descender: spec.descender,
       glyphs,
     });
 
+    const styleFamily = spec.styleDNA?.styleFamily || 'GENERAL';
+    const fontNames = font.names as unknown as Record<string, Record<string, { en: string }>>;
+
+    if (fontNames && fontNames.windows) {
+      fontNames.windows.version = { en: `Version 1.000;StyleDNA:${styleFamily}` };
+      fontNames.windows.manufacturer = { en: 'AI Font Generator Engine' };
+      fontNames.windows.designer = { en: 'AI Typography Director' };
+    }
+    if (fontNames && fontNames.mac) {
+      fontNames.mac.version = { en: `Version 1.000;StyleDNA:${styleFamily}` };
+      fontNames.mac.manufacturer = { en: 'AI Font Generator Engine' };
+      fontNames.mac.designer = { en: 'AI Typography Director' };
+    }
+
+
     // 3. Compile TrueType (.ttf) ArrayBuffer
     const ttfArrayBuffer = font.toArrayBuffer();
     const ttfBuffer = Buffer.from(ttfArrayBuffer);
+
+
 
     // 4. Compile OpenType (.otf) ArrayBuffer
     const otfBuffer = Buffer.from(ttfArrayBuffer);

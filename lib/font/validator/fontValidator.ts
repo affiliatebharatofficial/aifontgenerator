@@ -57,6 +57,41 @@ export class FontValidationService {
 
       if (!parsedFont.glyphs || parsedFont.glyphs.length === 0) {
         errors.push('Parsed font contains 0 glyphs.');
+      } else {
+        // 4a. Validate unitsPerEm
+        if (parsedFont.unitsPerEm !== 1000) {
+          errors.push(`Invalid unitsPerEm: ${parsedFont.unitsPerEm} (expected 1000).`);
+        }
+
+        // 4b. Validate cmap table
+        if (!parsedFont.tables.cmap) {
+          errors.push('Missing OpenType cmap character map table.');
+        }
+
+        // 4c. Validate space glyph
+        const spaceGlyph = parsedFont.charToGlyph(' ');
+        if (!spaceGlyph || !spaceGlyph.advanceWidth || spaceGlyph.advanceWidth <= 0) {
+          errors.push('Invalid or missing space glyph advance width.');
+        }
+
+        // 4d. Validate glyph coordinate bounds
+        for (let i = 0; i < parsedFont.glyphs.length; i++) {
+          const g = parsedFont.glyphs.get(i);
+          if (g && g.path && g.path.commands) {
+            for (const rawCmd of g.path.commands) {
+              const cmd = rawCmd as Record<string, unknown>;
+              if (typeof cmd.x === 'number' && (!Number.isFinite(cmd.x) || Number.isNaN(cmd.x))) {
+                errors.push(`Glyph "${g.name}" contains non-finite X coordinate.`);
+                break;
+              }
+              if (typeof cmd.y === 'number' && (!Number.isFinite(cmd.y) || Number.isNaN(cmd.y))) {
+                errors.push(`Glyph "${g.name}" contains non-finite Y coordinate.`);
+                break;
+              }
+            }
+          }
+        }
+
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -69,3 +104,4 @@ export class FontValidationService {
     };
   }
 }
+

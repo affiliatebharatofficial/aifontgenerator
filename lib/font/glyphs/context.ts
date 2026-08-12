@@ -31,6 +31,7 @@ export class GlyphGeometryContext {
   public distortion: number;
   public symmetry: number;
   public seed: number;
+  public overshoot: number;
 
   constructor(spec: FontSpecification, customSeed?: number) {
     this.spec = spec;
@@ -58,6 +59,14 @@ export class GlyphGeometryContext {
     this.angularity = this.dna.angularity;
     this.distortion = this.dna.distortion;
     this.symmetry = this.dna.symmetry;
+
+    // Typographic Overshoot for curved crowns and bowls (1000 UPM grid)
+    // Angular/Chamfered techno styles do not overshoot. Rounded styles overshoot by ~10-16 units.
+    if (this.dna.styleFamily === 'FUTURISTIC' || this.dna.cornerStyle === 'CHAMFERED' || this.angularity > 0.8) {
+      this.overshoot = 0;
+    } else {
+      this.overshoot = Math.max(0, Math.min(20, Math.round(14 * Math.max(0.2, this.roundness))));
+    }
 
     // Deterministic seed generation based on font name and prompt hash
     this.seed = customSeed !== undefined ? customSeed : this.hashString((spec.fontName || '') + (spec.prompt || ''));
@@ -122,25 +131,53 @@ export class GlyphGeometryContext {
   }
 
   /**
+   * Optical side bearings based on glyph geometry characteristics
+   */
+  public getOpticalSideBearings(shape: 'straight' | 'round' | 'diagonal_left' | 'diagonal_right' | 'open_right' | 'open_left' | 'narrow' | 'wide' = 'straight'): { lsb: number; rsb: number } {
+    let baseBearing = 48;
+    if (this.dna.spacing === 'TIGHT') baseBearing = 32;
+    else if (this.dna.spacing === 'OPEN') baseBearing = 68;
+    else if (this.dna.spacing === 'DISPLAY') baseBearing = 80;
+
+    switch (shape) {
+      case 'round':
+        return { lsb: Math.round(baseBearing * 0.75), rsb: Math.round(baseBearing * 0.75) };
+      case 'diagonal_left': // e.g. A
+        return { lsb: Math.round(baseBearing * 0.65), rsb: Math.round(baseBearing * 0.65) };
+      case 'diagonal_right': // e.g. V, W, Y
+        return { lsb: Math.round(baseBearing * 0.55), rsb: Math.round(baseBearing * 0.55) };
+      case 'open_right': // e.g. C, E, F, K, L
+        return { lsb: baseBearing, rsb: Math.round(baseBearing * 0.65) };
+      case 'open_left': // e.g. J
+        return { lsb: Math.round(baseBearing * 0.65), rsb: baseBearing };
+      case 'narrow': // e.g. I, i, l, 1, !, :, ;
+        return { lsb: Math.round(baseBearing * 0.8), rsb: Math.round(baseBearing * 0.8) };
+      case 'wide': // e.g. W, M, w, m
+        return { lsb: Math.round(baseBearing * 0.7), rsb: Math.round(baseBearing * 0.7) };
+      case 'straight':
+      default:
+        return { lsb: baseBearing, rsb: baseBearing };
+    }
+  }
+
+  /**
    * Calculates standardized advance width for character.
    */
-  public getAdvanceWidth(nominalWidth: number): number {
+  public getAdvanceWidth(nominalWidth: number, shape: 'straight' | 'round' | 'diagonal_left' | 'diagonal_right' | 'open_right' | 'open_left' | 'narrow' | 'wide' = 'straight'): number {
     if (this.dna.styleFamily === 'MONOSPACE') {
       return Math.round(620 * this.widthScale);
     }
 
-    let trackingOffset = 0;
-    if (this.dna.spacing === 'TIGHT') trackingOffset = -30;
-    else if (this.dna.spacing === 'OPEN') trackingOffset = 50;
-    else if (this.dna.spacing === 'DISPLAY') trackingOffset = 80;
-
-    return Math.max(200, Math.round(nominalWidth * this.widthScale + trackingOffset));
+    const { lsb, rsb } = this.getOpticalSideBearings(shape);
+    const scaledWidth = nominalWidth * this.widthScale;
+    return Math.max(160, Math.round(scaledWidth + (lsb + rsb - 96)));
   }
 
   /**
    * Center X coordinate for glyph bounded box within nominal advance width.
    */
   public getCenterOffset(totalContentWidth: number, advanceWidth: number): number {
-    return Math.max(30, Math.round((advanceWidth - totalContentWidth) / 2));
+    return Math.max(20, Math.round((advanceWidth - totalContentWidth) / 2));
   }
 }
+

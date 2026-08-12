@@ -19,21 +19,63 @@ export class StyleAwareGlyphEngine {
     return this.ctx;
   }
 
+  /**
+   * Sanitizes glyph commands, bounds, and metrics.
+   * Rejects/corrects NaN, Infinity, and runaway values.
+   */
+  private sanitizeGlyph(glyph: Glyph): Glyph {
+    // 1. Check path validity
+    if (!glyph.path || glyph.path.commands.length === 0) {
+      if (glyph.name !== 'space') {
+        const p = new Path();
+        const w = Math.max(120, glyph.advanceWidth || 500);
+        const h = this.ctx.capH;
+        StemPrimitive.addStem(this.ctx, p, 50, 0, 20, h, glyph.unicode || 0);
+        StemPrimitive.addStem(this.ctx, p, w - 70, 0, 20, h, glyph.unicode || 0);
+        glyph.path = p;
+      }
+    }
+
+    // 2. Validate all command coordinates for NaN or Infinity
+    if (glyph.path && glyph.path.commands) {
+      for (const rawCmd of glyph.path.commands) {
+        const cmd = rawCmd as Record<string, unknown>;
+        if (typeof cmd.x === 'number' && (!Number.isFinite(cmd.x) || Number.isNaN(cmd.x))) cmd.x = 0;
+        if (typeof cmd.y === 'number' && (!Number.isFinite(cmd.y) || Number.isNaN(cmd.y))) cmd.y = 0;
+        if (typeof cmd.x1 === 'number' && (!Number.isFinite(cmd.x1) || Number.isNaN(cmd.x1))) cmd.x1 = 0;
+        if (typeof cmd.y1 === 'number' && (!Number.isFinite(cmd.y1) || Number.isNaN(cmd.y1))) cmd.y1 = 0;
+        if (typeof cmd.x2 === 'number' && (!Number.isFinite(cmd.x2) || Number.isNaN(cmd.x2))) cmd.x2 = 0;
+        if (typeof cmd.y2 === 'number' && (!Number.isFinite(cmd.y2) || Number.isNaN(cmd.y2))) cmd.y2 = 0;
+      }
+    }
+
+    // 3. Ensure advanceWidth is positive and finite
+    const adv = glyph.advanceWidth;
+    if (adv === undefined || !Number.isFinite(adv) || adv <= 0) {
+      glyph.advanceWidth = this.ctx.getAdvanceWidth(500);
+    }
+
+
+    return glyph;
+  }
+
   public generateGlyphs(): Glyph[] {
     const glyphs: Glyph[] = [];
 
     // 1. .notdef
     glyphs.push(this.createNotDefGlyph());
 
-    // 2. Space
-    const spaceWidth = this.ctx.getAdvanceWidth(320);
+    // 2. Space (empty path with positive advance width)
+    const spaceWidth = this.ctx.getAdvanceWidth(320, 'straight');
     glyphs.push(
-      new Glyph({
-        name: 'space',
-        unicode: 32,
-        advanceWidth: spaceWidth,
-        path: new Path(),
-      })
+      this.sanitizeGlyph(
+        new Glyph({
+          name: 'space',
+          unicode: 32,
+          advanceWidth: spaceWidth,
+          path: new Path(),
+        })
+      )
     );
 
     // 3. Uppercase A-Z
@@ -74,8 +116,13 @@ export class StyleAwareGlyphEngine {
         { char: '+', code: 43 },
         { char: '=', code: 61 },
         { char: '/', code: 47 },
+        { char: '\\', code: 92 },
         { char: '(', code: 40 },
         { char: ')', code: 41 },
+        { char: '[', code: 91 },
+        { char: ']', code: 93 },
+        { char: '{', code: 123 },
+        { char: '}', code: 125 },
         { char: "'", code: 39 },
         { char: '"', code: 34 },
         { char: '@', code: 64 },
@@ -83,6 +130,10 @@ export class StyleAwareGlyphEngine {
         { char: '$', code: 36 },
         { char: '%', code: 37 },
         { char: '&', code: 38 },
+        { char: '*', code: 42 },
+        { char: '<', code: 60 },
+        { char: '>', code: 62 },
+        { char: '~', code: 126 },
       ];
       puncts.forEach((p) => {
         glyphs.push(this.createPunctuationGlyph(p.char, p.code));
@@ -94,7 +145,6 @@ export class StyleAwareGlyphEngine {
       (this.ctx.dna.styleFamily as string) === 'DEVANAGARI' ||
       this.spec.characterSet.devanagari === true ||
       (this.spec.category || '').toLowerCase() === 'devanagari';
-
 
     if (isDevanagari) {
       this.generateDevanagariGlyphs(glyphs);
@@ -113,12 +163,14 @@ export class StyleAwareGlyphEngine {
     StemPrimitive.addStem(this.ctx, p, 50, h - s, w - 100, s, 0);
     StemPrimitive.addStem(this.ctx, p, 50, 0, w - 100, s, 0);
 
-    return new Glyph({
-      name: '.notdef',
-      unicode: 0,
-      advanceWidth: this.ctx.getAdvanceWidth(w),
-      path: p,
-    });
+    return this.sanitizeGlyph(
+      new Glyph({
+        name: '.notdef',
+        unicode: 0,
+        advanceWidth: this.ctx.getAdvanceWidth(w, 'straight'),
+        path: p,
+      })
+    );
   }
 
   // =========================================================================
@@ -131,10 +183,12 @@ export class StyleAwareGlyphEngine {
     const hStem = this.ctx.hStem;
 
     let nominalW = 580;
+    let shape: 'straight' | 'round' | 'diagonal_left' | 'diagonal_right' | 'open_right' | 'open_left' | 'narrow' | 'wide' = 'straight';
 
     switch (char) {
       case 'A': {
         nominalW = 620;
+        shape = 'diagonal_left';
         const xCenter = nominalW / 2;
         DiagonalPrimitive.addApex(this.ctx, p, xCenter, capH, 50, 0, nominalW - 50 - stem, 0, stem, code);
         const barY = Math.round(capH * 0.38);
@@ -145,6 +199,7 @@ export class StyleAwareGlyphEngine {
       }
       case 'B': {
         nominalW = 580;
+        shape = 'open_right';
         StemPrimitive.addStem(this.ctx, p, 60, 0, stem, capH, code, { topTerminal: true, botTerminal: true });
         const midY = Math.round(capH * 0.50);
         RingPrimitive.addRing(this.ctx, p, 60 + stem, midY, nominalW - 120 - stem, capH - midY, stem, hStem, code);
@@ -154,6 +209,7 @@ export class StyleAwareGlyphEngine {
       }
       case 'C': {
         nominalW = 580;
+        shape = 'open_right';
         RingPrimitive.addRing(this.ctx, p, 60, 0, nominalW - 120, capH, stem, hStem, code);
         // Cut out the right aperture
         const cutH = Math.round(capH * 0.40);
@@ -171,6 +227,7 @@ export class StyleAwareGlyphEngine {
       }
       case 'D': {
         nominalW = 600;
+        shape = 'round';
         StemPrimitive.addStem(this.ctx, p, 60, 0, stem, capH, code, { topTerminal: true, botTerminal: true });
         RingPrimitive.addRing(this.ctx, p, 60, 0, nominalW - 100, capH, stem, hStem, code);
         SerifPrimitive.addSerifs(this.ctx, p, 60, 0, stem, 'both', code);
@@ -178,6 +235,7 @@ export class StyleAwareGlyphEngine {
       }
       case 'E': {
         nominalW = 540;
+        shape = 'open_right';
         StemPrimitive.addStem(this.ctx, p, 60, 0, stem, capH, code, { topTerminal: true, botTerminal: true });
         StemPrimitive.addStem(this.ctx, p, 60 + stem, capH - hStem, nominalW - 120 - stem, hStem, code, { rightTerminal: true });
         const midY = Math.round(capH * 0.50);
@@ -188,6 +246,7 @@ export class StyleAwareGlyphEngine {
       }
       case 'F': {
         nominalW = 520;
+        shape = 'open_right';
         StemPrimitive.addStem(this.ctx, p, 60, 0, stem, capH, code, { topTerminal: true, botTerminal: true });
         StemPrimitive.addStem(this.ctx, p, 60 + stem, capH - hStem, nominalW - 120 - stem, hStem, code, { rightTerminal: true });
         const midY = Math.round(capH * 0.50);
@@ -197,6 +256,7 @@ export class StyleAwareGlyphEngine {
       }
       case 'G': {
         nominalW = 600;
+        shape = 'round';
         RingPrimitive.addRing(this.ctx, p, 60, 0, nominalW - 120, capH, stem, hStem, code);
         const midY = Math.round(capH * 0.44);
         StemPrimitive.addStem(this.ctx, p, nominalW - 60 - stem, 0, stem, midY, code);
@@ -205,6 +265,7 @@ export class StyleAwareGlyphEngine {
       }
       case 'H': {
         nominalW = 620;
+        shape = 'straight';
         StemPrimitive.addStem(this.ctx, p, 60, 0, stem, capH, code, { topTerminal: true, botTerminal: true });
         StemPrimitive.addStem(this.ctx, p, nominalW - 60 - stem, 0, stem, capH, code, { topTerminal: true, botTerminal: true });
         const midY = Math.round(capH * 0.50);
@@ -215,37 +276,43 @@ export class StyleAwareGlyphEngine {
       }
       case 'I': {
         nominalW = 340;
+        shape = 'narrow';
         const cX = Math.round((nominalW - stem) / 2);
         StemPrimitive.addStem(this.ctx, p, cX, 0, stem, capH, code, { topTerminal: true, botTerminal: true });
         SerifPrimitive.addSerifs(this.ctx, p, cX, 0, stem, 'both', code);
         break;
       }
       case 'J': {
-        nominalW = 420;
-        const stemX = nominalW - 60 - stem;
-        StemPrimitive.addStem(this.ctx, p, stemX, Math.round(capH * 0.22), stem, Math.round(capH * 0.78), code, { topTerminal: true });
-        RingPrimitive.addRing(this.ctx, p, 60, 0, nominalW - 120, Math.round(capH * 0.48), stem, hStem, code);
-        SerifPrimitive.addSerifs(this.ctx, p, stemX, 0, stem, 'top', code);
+        nominalW = 440;
+        shape = 'open_left';
+        const cX = nominalW - 60 - stem;
+        StemPrimitive.addStem(this.ctx, p, cX, Math.round(capH * 0.25), stem, Math.round(capH * 0.75), code, { topTerminal: true });
+        RingPrimitive.addRing(this.ctx, p, 60, 0, cX + stem - 60, Math.round(capH * 0.50), stem, hStem, code);
+        SerifPrimitive.addSerifs(this.ctx, p, cX, capH, stem, 'top', code);
         break;
       }
       case 'K': {
         nominalW = 580;
+        shape = 'open_right';
         StemPrimitive.addStem(this.ctx, p, 60, 0, stem, capH, code, { topTerminal: true, botTerminal: true });
-        const midY = Math.round(capH * 0.45);
+        const midY = Math.round(capH * 0.44);
         DiagonalPrimitive.addDiagonal(this.ctx, p, 60 + stem, midY, nominalW - 60, capH, stem, code, { isDownstroke: false });
-        DiagonalPrimitive.addDiagonal(this.ctx, p, Math.round(nominalW * 0.46), Math.round(capH * 0.52), nominalW - 60, 0, stem, code, { isDownstroke: true });
+        DiagonalPrimitive.addDiagonal(this.ctx, p, Math.round(nominalW * 0.45), Math.round(capH * 0.50), nominalW - 60, 0, stem, code, { isDownstroke: true });
         SerifPrimitive.addSerifs(this.ctx, p, 60, 0, stem, 'both', code);
         break;
       }
       case 'L': {
         nominalW = 480;
+        shape = 'open_right';
         StemPrimitive.addStem(this.ctx, p, 60, 0, stem, capH, code, { topTerminal: true, botTerminal: true });
-        StemPrimitive.addStem(this.ctx, p, 60 + stem, 0, nominalW - 110 - stem, hStem, code, { rightTerminal: true });
-        SerifPrimitive.addSerifs(this.ctx, p, 60, 0, stem, 'top', code);
+        StemPrimitive.addStem(this.ctx, p, 60 + stem, 0, nominalW - 120 - stem, hStem, code, { rightTerminal: true });
+        SerifPrimitive.addSerifs(this.ctx, p, 60, capH, stem, 'top', code);
+        SerifPrimitive.addSerifs(this.ctx, p, nominalW - 60, 0, stem, 'bot-right', code);
         break;
       }
       case 'M': {
         nominalW = 720;
+        shape = 'wide';
         StemPrimitive.addStem(this.ctx, p, 50, 0, stem, capH, code);
         StemPrimitive.addStem(this.ctx, p, nominalW - 50 - stem, 0, stem, capH, code);
         const midX = nominalW / 2;
@@ -257,52 +324,57 @@ export class StyleAwareGlyphEngine {
       }
       case 'N': {
         nominalW = 620;
+        shape = 'straight';
         StemPrimitive.addStem(this.ctx, p, 60, 0, stem, capH, code);
         StemPrimitive.addStem(this.ctx, p, nominalW - 60 - stem, 0, stem, capH, code);
-        DiagonalPrimitive.addDiagonal(this.ctx, p, 60 + stem, capH, nominalW - 60 - stem, 0, stem, code, { isDownstroke: true });
+        DiagonalPrimitive.addDiagonal(this.ctx, p, 60, capH, nominalW - 60, 0, stem, code, { isDownstroke: true });
         SerifPrimitive.addSerifs(this.ctx, p, 60, 0, stem, 'both', code);
         SerifPrimitive.addSerifs(this.ctx, p, nominalW - 60 - stem, 0, stem, 'both', code);
         break;
       }
       case 'O': {
         nominalW = 620;
+        shape = 'round';
         RingPrimitive.addRing(this.ctx, p, 60, 0, nominalW - 120, capH, stem, hStem, code);
         break;
       }
       case 'P': {
         nominalW = 560;
+        shape = 'open_right';
         StemPrimitive.addStem(this.ctx, p, 60, 0, stem, capH, code, { topTerminal: true, botTerminal: true });
         const midY = Math.round(capH * 0.45);
-        RingPrimitive.addRing(this.ctx, p, 60 + stem, midY, nominalW - 110 - stem, capH - midY, stem, hStem, code);
+        RingPrimitive.addRing(this.ctx, p, 60 + stem, midY, nominalW - 120 - stem, capH - midY, stem, hStem, code);
         SerifPrimitive.addSerifs(this.ctx, p, 60, 0, stem, 'both', code);
         break;
       }
       case 'Q': {
         nominalW = 620;
+        shape = 'round';
         RingPrimitive.addRing(this.ctx, p, 60, 0, nominalW - 120, capH, stem, hStem, code);
-        // Stylistic tail spur
-        const tailX = Math.round(nominalW * 0.60);
-        DiagonalPrimitive.addDiagonal(this.ctx, p, tailX, Math.round(capH * 0.25), nominalW - 20, -Math.round(capH * 0.12), stem, code);
+        DiagonalPrimitive.addDiagonal(this.ctx, p, Math.round(nominalW * 0.48), Math.round(capH * 0.25), nominalW - 30, -Math.round(capH * 0.12), stem, code, { isDownstroke: true });
         break;
       }
       case 'R': {
         nominalW = 580;
+        shape = 'open_right';
         StemPrimitive.addStem(this.ctx, p, 60, 0, stem, capH, code, { topTerminal: true, botTerminal: true });
-        const midY = Math.round(capH * 0.48);
+        const midY = Math.round(capH * 0.50);
         RingPrimitive.addRing(this.ctx, p, 60 + stem, midY, nominalW - 120 - stem, capH - midY, stem, hStem, code);
-        DiagonalPrimitive.addDiagonal(this.ctx, p, 60 + stem, midY, nominalW - 60, 0, stem, code, { isDownstroke: true });
+        DiagonalPrimitive.addDiagonal(this.ctx, p, Math.round(nominalW * 0.45), midY, nominalW - 60, 0, stem, code, { isDownstroke: true });
         SerifPrimitive.addSerifs(this.ctx, p, 60, 0, stem, 'both', code);
         break;
       }
       case 'S': {
         nominalW = 540;
+        shape = 'round';
         const midY = Math.round(capH * 0.50);
         RingPrimitive.addRing(this.ctx, p, 60, midY - hStem / 2, nominalW - 120, capH - midY + hStem / 2, stem, hStem, code);
-        RingPrimitive.addRing(this.ctx, p, 60, 0, nominalW - 120, midY + hStem / 2, stem, hStem, code);
+        RingPrimitive.addRing(this.ctx, p, 50, 0, nominalW - 100, midY + hStem / 2, stem, hStem, code);
         break;
       }
       case 'T': {
-        nominalW = 540;
+        nominalW = 560;
+        shape = 'diagonal_right';
         const cX = Math.round((nominalW - stem) / 2);
         StemPrimitive.addStem(this.ctx, p, cX, 0, stem, capH - hStem, code, { botTerminal: true });
         StemPrimitive.addStem(this.ctx, p, 40, capH - hStem, nominalW - 80, hStem, code, { leftTerminal: true, rightTerminal: true });
@@ -311,23 +383,28 @@ export class StyleAwareGlyphEngine {
       }
       case 'U': {
         nominalW = 600;
-        StemPrimitive.addStem(this.ctx, p, 60, Math.round(capH * 0.28), stem, Math.round(capH * 0.72), code, { topTerminal: true });
-        StemPrimitive.addStem(this.ctx, p, nominalW - 60 - stem, Math.round(capH * 0.28), stem, Math.round(capH * 0.72), code, { topTerminal: true });
-        RingPrimitive.addRing(this.ctx, p, 60, 0, nominalW - 120, Math.round(capH * 0.56), stem, hStem, code);
-        SerifPrimitive.addSerifs(this.ctx, p, 60, 0, stem, 'top', code);
-        SerifPrimitive.addSerifs(this.ctx, p, nominalW - 60 - stem, 0, stem, 'top', code);
+        shape = 'round';
+        const curveH = Math.round(capH * 0.40);
+        StemPrimitive.addStem(this.ctx, p, 60, curveH, stem, capH - curveH, code, { topTerminal: true });
+        StemPrimitive.addStem(this.ctx, p, nominalW - 60 - stem, curveH, stem, capH - curveH, code, { topTerminal: true });
+        RingPrimitive.addRing(this.ctx, p, 60, 0, nominalW - 120, curveH * 2, stem, hStem, code);
+        SerifPrimitive.addSerifs(this.ctx, p, 60, capH, stem, 'top', code);
+        SerifPrimitive.addSerifs(this.ctx, p, nominalW - 60 - stem, capH, stem, 'top', code);
         break;
       }
       case 'V': {
         nominalW = 600;
+        shape = 'diagonal_right';
         const xCenter = nominalW / 2;
-        DiagonalPrimitive.addApex(this.ctx, p, xCenter, 0, 50, capH, nominalW - 50 - stem, capH, stem, code);
+        DiagonalPrimitive.addDiagonal(this.ctx, p, 50, capH, xCenter, 0, stem, code, { isDownstroke: true });
+        DiagonalPrimitive.addDiagonal(this.ctx, p, xCenter, 0, nominalW - 50, capH, stem, code, { isDownstroke: false });
         SerifPrimitive.addSerifs(this.ctx, p, 50, capH, stem, 'top', code);
-        SerifPrimitive.addSerifs(this.ctx, p, nominalW - 50 - stem, capH, stem, 'top', code);
+        SerifPrimitive.addSerifs(this.ctx, p, nominalW - 50, capH, stem, 'top', code);
         break;
       }
       case 'W': {
         nominalW = 800;
+        shape = 'wide';
         const q1 = Math.round(nominalW * 0.28);
         const q3 = Math.round(nominalW * 0.72);
         DiagonalPrimitive.addDiagonal(this.ctx, p, 50, capH, q1, 0, stem, code, { isDownstroke: true });
@@ -338,6 +415,7 @@ export class StyleAwareGlyphEngine {
       }
       case 'X': {
         nominalW = 580;
+        shape = 'diagonal_right';
         DiagonalPrimitive.addDiagonal(this.ctx, p, 60, capH, nominalW - 60, 0, stem, code, { isDownstroke: true });
         DiagonalPrimitive.addDiagonal(this.ctx, p, 60, 0, nominalW - 60, capH, stem, code, { isDownstroke: false });
         SerifPrimitive.addSerifs(this.ctx, p, 60, 0, stem, 'both', code);
@@ -346,6 +424,7 @@ export class StyleAwareGlyphEngine {
       }
       case 'Y': {
         nominalW = 580;
+        shape = 'diagonal_right';
         const cX = Math.round((nominalW - stem) / 2);
         const midY = Math.round(capH * 0.46);
         StemPrimitive.addStem(this.ctx, p, cX, 0, stem, midY, code, { botTerminal: true });
@@ -356,6 +435,7 @@ export class StyleAwareGlyphEngine {
       }
       case 'Z': {
         nominalW = 540;
+        shape = 'straight';
         StemPrimitive.addStem(this.ctx, p, 60, capH - hStem, nominalW - 120, hStem, code);
         StemPrimitive.addStem(this.ctx, p, 60, 0, nominalW - 120, hStem, code);
         DiagonalPrimitive.addDiagonal(this.ctx, p, nominalW - 60, capH - hStem, 60, hStem, stem, code, { isDownstroke: true });
@@ -363,12 +443,14 @@ export class StyleAwareGlyphEngine {
       }
     }
 
-    return new Glyph({
-      name: char,
-      unicode: code,
-      advanceWidth: this.ctx.getAdvanceWidth(nominalW),
-      path: p,
-    });
+    return this.sanitizeGlyph(
+      new Glyph({
+        name: char,
+        unicode: code,
+        advanceWidth: this.ctx.getAdvanceWidth(nominalW, shape),
+        path: p,
+      })
+    );
   }
 
   // =========================================================================
@@ -383,16 +465,33 @@ export class StyleAwareGlyphEngine {
     const hStem = Math.round(this.ctx.hStem * 0.92);
 
     let nominalW = 480;
+    let shape: 'straight' | 'round' | 'diagonal_left' | 'diagonal_right' | 'open_right' | 'open_left' | 'narrow' | 'wide' = 'straight';
 
     switch (char) {
       case 'a': {
-        nominalW = 500;
-        RingPrimitive.addRing(this.ctx, p, 50, 0, nominalW - 100 - stem, xH, stem, hStem, code);
-        StemPrimitive.addStem(this.ctx, p, nominalW - 50 - stem, 0, stem, xH, code, { topTerminal: true, botTerminal: true });
+        const isTwoStory =
+          this.ctx.dna.styleFamily === 'DIDONE_SERIF' ||
+          this.ctx.dna.styleFamily === 'SERIF' ||
+          this.ctx.dna.styleFamily === 'SLAB_SERIF' ||
+          this.ctx.dna.styleFamily === 'GROTESK';
+        shape = 'round';
+        if (isTwoStory) {
+          nominalW = 500;
+          StemPrimitive.addStem(this.ctx, p, 50, xH - hStem, nominalW - 100, hStem, code, { leftTerminal: true });
+          StemPrimitive.addStem(this.ctx, p, nominalW - 50 - stem, Math.round(xH * 0.4), stem, Math.round(xH * 0.6), code);
+          const bowlH = Math.round(xH * 0.58);
+          RingPrimitive.addRing(this.ctx, p, 50, 0, nominalW - 100 - stem, bowlH, stem, hStem, code);
+          StemPrimitive.addStem(this.ctx, p, nominalW - 50 - stem, 0, stem, bowlH, code, { botTerminal: true });
+        } else {
+          nominalW = 480;
+          RingPrimitive.addRing(this.ctx, p, 50, 0, nominalW - 100 - stem, xH, stem, hStem, code);
+          StemPrimitive.addStem(this.ctx, p, nominalW - 50 - stem, 0, stem, xH, code, { topTerminal: true, botTerminal: true });
+        }
         break;
       }
       case 'b': {
         nominalW = 520;
+        shape = 'straight';
         StemPrimitive.addStem(this.ctx, p, 50, 0, stem, asc, code, { topTerminal: true, botTerminal: true });
         RingPrimitive.addRing(this.ctx, p, 50 + stem, 0, nominalW - 100 - stem, xH, stem, hStem, code);
         SerifPrimitive.addSerifs(this.ctx, p, 50, 0, stem, 'both', code);
@@ -400,8 +499,8 @@ export class StyleAwareGlyphEngine {
       }
       case 'c': {
         nominalW = 460;
+        shape = 'open_right';
         RingPrimitive.addRing(this.ctx, p, 50, 0, nominalW - 100, xH, stem, hStem, code);
-        // Cut right aperture
         const cutH = Math.round(xH * 0.44);
         const cutY = Math.round((xH - cutH) / 2);
         const p1 = this.ctx.pt(nominalW / 2, cutY, code, 410);
@@ -417,6 +516,7 @@ export class StyleAwareGlyphEngine {
       }
       case 'd': {
         nominalW = 520;
+        shape = 'round';
         RingPrimitive.addRing(this.ctx, p, 50, 0, nominalW - 100 - stem, xH, stem, hStem, code);
         StemPrimitive.addStem(this.ctx, p, nominalW - 50 - stem, 0, stem, asc, code, { topTerminal: true, botTerminal: true });
         SerifPrimitive.addSerifs(this.ctx, p, nominalW - 50 - stem, 0, stem, 'both', code);
@@ -424,6 +524,7 @@ export class StyleAwareGlyphEngine {
       }
       case 'e': {
         nominalW = 480;
+        shape = 'round';
         RingPrimitive.addRing(this.ctx, p, 50, 0, nominalW - 100, xH, stem, hStem, code);
         const barY = Math.round(xH * 0.48);
         StemPrimitive.addStem(this.ctx, p, 50, barY, nominalW - 100, hStem, code);
@@ -431,20 +532,34 @@ export class StyleAwareGlyphEngine {
       }
       case 'f': {
         nominalW = 340;
+        shape = 'narrow';
         StemPrimitive.addStem(this.ctx, p, 70, 0, stem, asc - 40, code, { botTerminal: true });
         StemPrimitive.addStem(this.ctx, p, 70, asc - 40, Math.round(nominalW * 0.65), hStem, code, { rightTerminal: true });
         StemPrimitive.addStem(this.ctx, p, 30, xH - hStem, nominalW - 60, hStem, code);
         break;
       }
       case 'g': {
-        nominalW = 500;
-        RingPrimitive.addRing(this.ctx, p, 50, 0, nominalW - 100 - stem, xH, stem, hStem, code);
-        StemPrimitive.addStem(this.ctx, p, nominalW - 50 - stem, desc, stem, xH - desc, code, { botTerminal: true });
-        StemPrimitive.addStem(this.ctx, p, 50, desc, nominalW - 100, hStem, code, { leftTerminal: true });
+        const isDoubleStory = this.ctx.dna.styleFamily === 'DIDONE_SERIF' || this.ctx.dna.styleFamily === 'SERIF';
+        shape = 'round';
+        if (isDoubleStory) {
+          nominalW = 520;
+          const upperH = Math.round(xH * 0.55);
+          RingPrimitive.addRing(this.ctx, p, 60, xH - upperH, nominalW - 120, upperH, stem, hStem, code);
+          StemPrimitive.addStem(this.ctx, p, nominalW - 60, xH - hStem, 30, hStem, code, { rightTerminal: true });
+          const lowerH = Math.round(-desc * 0.85);
+          RingPrimitive.addRing(this.ctx, p, 50, desc + 20, nominalW - 100, lowerH, stem, hStem, code);
+          StemPrimitive.addStem(this.ctx, p, Math.round(nominalW * 0.6), desc + lowerH, Math.round(stem * 0.8), xH - upperH - (desc + lowerH), code);
+        } else {
+          nominalW = 500;
+          RingPrimitive.addRing(this.ctx, p, 50, 0, nominalW - 100 - stem, xH, stem, hStem, code);
+          StemPrimitive.addStem(this.ctx, p, nominalW - 50 - stem, desc, stem, xH - desc, code, { botTerminal: true });
+          StemPrimitive.addStem(this.ctx, p, 50, desc, nominalW - 100, hStem, code, { leftTerminal: true });
+        }
         break;
       }
       case 'h': {
         nominalW = 520;
+        shape = 'straight';
         StemPrimitive.addStem(this.ctx, p, 50, 0, stem, asc, code, { topTerminal: true, botTerminal: true });
         RingPrimitive.addRing(this.ctx, p, 50 + stem, 0, nominalW - 100 - stem, xH, stem, hStem, code);
         StemPrimitive.addStem(this.ctx, p, nominalW - 50 - stem, 0, stem, xH, code, { botTerminal: true });
@@ -452,31 +567,33 @@ export class StyleAwareGlyphEngine {
       }
       case 'i': {
         nominalW = 280;
+        shape = 'narrow';
         const cX = Math.round((nominalW - stem) / 2);
         StemPrimitive.addStem(this.ctx, p, cX, 0, stem, xH, code, { topTerminal: true, botTerminal: true });
-        // Dot
         StemPrimitive.addStem(this.ctx, p, cX, xH + Math.round(xH * 0.22), stem, stem, code, { topTerminal: true, botTerminal: true });
         break;
       }
       case 'j': {
         nominalW = 300;
+        shape = 'narrow';
         const cX = Math.round(nominalW * 0.55);
         StemPrimitive.addStem(this.ctx, p, cX, desc + 40, stem, xH - desc - 40, code);
-        RingPrimitive.addRing(this.ctx, p, 40, desc, cX + stem - 40, Math.round(xH * 0.50), stem, hStem, code);
-        // Dot
+        RingPrimitive.addRing(this.ctx, p, 40, desc, cX + stem - 40, Math.round(xH * 0.5), stem, hStem, code);
         StemPrimitive.addStem(this.ctx, p, cX, xH + Math.round(xH * 0.22), stem, stem, code);
         break;
       }
       case 'k': {
         nominalW = 480;
+        shape = 'open_right';
         StemPrimitive.addStem(this.ctx, p, 50, 0, stem, asc, code, { topTerminal: true, botTerminal: true });
-        const midY = Math.round(xH * 0.40);
+        const midY = Math.round(xH * 0.4);
         DiagonalPrimitive.addDiagonal(this.ctx, p, 50 + stem, midY, nominalW - 50, xH, stem, code, { isDownstroke: false });
         DiagonalPrimitive.addDiagonal(this.ctx, p, Math.round(nominalW * 0.45), Math.round(xH * 0.48), nominalW - 50, 0, stem, code, { isDownstroke: true });
         break;
       }
       case 'l': {
         nominalW = 280;
+        shape = 'narrow';
         const cX = Math.round((nominalW - stem) / 2);
         StemPrimitive.addStem(this.ctx, p, cX, 0, stem, asc, code, { topTerminal: true, botTerminal: true });
         SerifPrimitive.addSerifs(this.ctx, p, cX, 0, stem, 'both', code);
@@ -484,6 +601,7 @@ export class StyleAwareGlyphEngine {
       }
       case 'm': {
         nominalW = 720;
+        shape = 'wide';
         StemPrimitive.addStem(this.ctx, p, 50, 0, stem, xH, code);
         const midX = Math.round((nominalW - stem) / 2);
         StemPrimitive.addStem(this.ctx, p, midX, 0, stem, xH, code);
@@ -494,6 +612,7 @@ export class StyleAwareGlyphEngine {
       }
       case 'n': {
         nominalW = 520;
+        shape = 'straight';
         StemPrimitive.addStem(this.ctx, p, 50, 0, stem, xH, code, { topTerminal: true, botTerminal: true });
         RingPrimitive.addRing(this.ctx, p, 50, 0, nominalW - 100, xH, stem, hStem, code);
         StemPrimitive.addStem(this.ctx, p, nominalW - 50 - stem, 0, stem, xH, code, { botTerminal: true });
@@ -501,26 +620,29 @@ export class StyleAwareGlyphEngine {
       }
       case 'o': {
         nominalW = 500;
+        shape = 'round';
         RingPrimitive.addRing(this.ctx, p, 50, 0, nominalW - 100, xH, stem, hStem, code);
         break;
       }
       case 'p': {
         nominalW = 520;
+        shape = 'straight';
         StemPrimitive.addStem(this.ctx, p, 50, desc, stem, xH - desc, code, { topTerminal: true, botTerminal: true });
         RingPrimitive.addRing(this.ctx, p, 50 + stem, 0, nominalW - 100 - stem, xH, stem, hStem, code);
         break;
       }
       case 'q': {
         nominalW = 520;
+        shape = 'round';
         RingPrimitive.addRing(this.ctx, p, 50, 0, nominalW - 100 - stem, xH, stem, hStem, code);
         StemPrimitive.addStem(this.ctx, p, nominalW - 50 - stem, desc, stem, xH - desc, code, { topTerminal: true, botTerminal: true });
         break;
       }
       case 'r': {
         nominalW = 380;
+        shape = 'open_right';
         StemPrimitive.addStem(this.ctx, p, 50, 0, stem, xH, code, { topTerminal: true, botTerminal: true });
         RingPrimitive.addRing(this.ctx, p, 50, 0, nominalW - 70, xH, stem, hStem, code);
-        // Cut out bottom loop to leave top shoulder
         const p1 = this.ctx.pt(50 + stem, 0, code, 420);
         const p2 = this.ctx.pt(nominalW, 0, code, 421);
         const p3 = this.ctx.pt(nominalW, Math.round(xH * 0.55), code, 422);
@@ -534,13 +656,15 @@ export class StyleAwareGlyphEngine {
       }
       case 's': {
         nominalW = 440;
-        const midY = Math.round(xH * 0.50);
+        shape = 'round';
+        const midY = Math.round(xH * 0.5);
         RingPrimitive.addRing(this.ctx, p, 50, midY - hStem / 2, nominalW - 100, xH - midY + hStem / 2, stem, hStem, code);
         RingPrimitive.addRing(this.ctx, p, 50, 0, nominalW - 100, midY + hStem / 2, stem, hStem, code);
         break;
       }
       case 't': {
         nominalW = 360;
+        shape = 'narrow';
         const cX = Math.round((nominalW - stem) / 2);
         StemPrimitive.addStem(this.ctx, p, cX, 0, stem, Math.round(asc * 0.85), code, { botTerminal: true });
         StemPrimitive.addStem(this.ctx, p, 30, xH - hStem, nominalW - 60, hStem, code);
@@ -548,18 +672,24 @@ export class StyleAwareGlyphEngine {
       }
       case 'u': {
         nominalW = 500;
-        StemPrimitive.addStem(this.ctx, p, 50, Math.round(xH * 0.35), stem, Math.round(xH * 0.65), code, { topTerminal: true });
+        shape = 'round';
+        const curveH = Math.round(xH * 0.4);
+        StemPrimitive.addStem(this.ctx, p, 50, curveH, stem, xH - curveH, code, { topTerminal: true });
         StemPrimitive.addStem(this.ctx, p, nominalW - 50 - stem, 0, stem, xH, code, { topTerminal: true, botTerminal: true });
-        RingPrimitive.addRing(this.ctx, p, 50, 0, nominalW - 100, Math.round(xH * 0.70), stem, hStem, code);
+        RingPrimitive.addRing(this.ctx, p, 50, 0, nominalW - 100, curveH * 2, stem, hStem, code);
         break;
       }
       case 'v': {
-        nominalW = 480;
-        DiagonalPrimitive.addApex(this.ctx, p, nominalW / 2, 0, 40, xH, nominalW - 40 - stem, xH, stem, code);
+        nominalW = 500;
+        shape = 'diagonal_right';
+        const xCenter = nominalW / 2;
+        DiagonalPrimitive.addDiagonal(this.ctx, p, 40, xH, xCenter, 0, stem, code, { isDownstroke: true });
+        DiagonalPrimitive.addDiagonal(this.ctx, p, xCenter, 0, nominalW - 40, xH, stem, code, { isDownstroke: false });
         break;
       }
       case 'w': {
         nominalW = 680;
+        shape = 'wide';
         const q1 = Math.round(nominalW * 0.28);
         const q3 = Math.round(nominalW * 0.72);
         DiagonalPrimitive.addDiagonal(this.ctx, p, 40, xH, q1, 0, stem, code, { isDownstroke: true });
@@ -569,19 +699,23 @@ export class StyleAwareGlyphEngine {
         break;
       }
       case 'x': {
-        nominalW = 460;
+        nominalW = 480;
+        shape = 'diagonal_right';
         DiagonalPrimitive.addDiagonal(this.ctx, p, 50, xH, nominalW - 50, 0, stem, code, { isDownstroke: true });
         DiagonalPrimitive.addDiagonal(this.ctx, p, 50, 0, nominalW - 50, xH, stem, code, { isDownstroke: false });
         break;
       }
       case 'y': {
-        nominalW = 480;
-        DiagonalPrimitive.addDiagonal(this.ctx, p, 40, xH, nominalW / 2, 0, stem, code, { isDownstroke: true });
+        nominalW = 500;
+        shape = 'diagonal_right';
+        const xCenter = nominalW / 2;
+        DiagonalPrimitive.addDiagonal(this.ctx, p, 40, xH, xCenter, 0, stem, code, { isDownstroke: true });
         DiagonalPrimitive.addDiagonal(this.ctx, p, nominalW - 40, xH, 40, desc, stem, code, { isDownstroke: false });
         break;
       }
       case 'z': {
         nominalW = 440;
+        shape = 'straight';
         StemPrimitive.addStem(this.ctx, p, 50, xH - hStem, nominalW - 100, hStem, code);
         StemPrimitive.addStem(this.ctx, p, 50, 0, nominalW - 100, hStem, code);
         DiagonalPrimitive.addDiagonal(this.ctx, p, nominalW - 50, xH - hStem, 50, hStem, stem, code, { isDownstroke: true });
@@ -589,12 +723,14 @@ export class StyleAwareGlyphEngine {
       }
     }
 
-    return new Glyph({
-      name: char,
-      unicode: code,
-      advanceWidth: this.ctx.getAdvanceWidth(nominalW),
-      path: p,
-    });
+    return this.sanitizeGlyph(
+      new Glyph({
+        name: char,
+        unicode: code,
+        advanceWidth: this.ctx.getAdvanceWidth(nominalW, shape),
+        path: p,
+      })
+    );
   }
 
   // =========================================================================
@@ -606,14 +742,17 @@ export class StyleAwareGlyphEngine {
     const stem = this.ctx.stem;
     const hStem = this.ctx.hStem;
     let nominalW = 520;
+    let shape: 'straight' | 'round' | 'diagonal_left' | 'diagonal_right' | 'open_right' | 'open_left' | 'narrow' | 'wide' = 'straight';
 
     switch (char) {
       case '0': {
+        shape = 'round';
         RingPrimitive.addRing(this.ctx, p, 50, 0, nominalW - 100, capH, stem, hStem, code);
         break;
       }
       case '1': {
         nominalW = 340;
+        shape = 'narrow';
         const cX = Math.round((nominalW - stem) / 2);
         StemPrimitive.addStem(this.ctx, p, cX, 0, stem, capH, code, { botTerminal: true });
         StemPrimitive.addStem(this.ctx, p, cX - Math.round(stem * 0.8), capH - hStem, Math.round(stem * 0.8), hStem, code);
@@ -621,18 +760,21 @@ export class StyleAwareGlyphEngine {
         break;
       }
       case '2': {
+        shape = 'straight';
         RingPrimitive.addRing(this.ctx, p, 50, Math.round(capH * 0.45), nominalW - 100, Math.round(capH * 0.55), stem, hStem, code);
         DiagonalPrimitive.addDiagonal(this.ctx, p, nominalW - 50, Math.round(capH * 0.55), 50, 0, stem, code);
         StemPrimitive.addStem(this.ctx, p, 50, 0, nominalW - 100, hStem, code);
         break;
       }
       case '3': {
-        const midY = Math.round(capH * 0.50);
+        shape = 'round';
+        const midY = Math.round(capH * 0.5);
         RingPrimitive.addRing(this.ctx, p, 50, midY, nominalW - 100, capH - midY, stem, hStem, code);
         RingPrimitive.addRing(this.ctx, p, 50, 0, nominalW - 100, midY, stem, hStem, code);
         break;
       }
       case '4': {
+        shape = 'straight';
         const barY = Math.round(capH * 0.35);
         const stemX = nominalW - 70 - stem;
         StemPrimitive.addStem(this.ctx, p, stemX, 0, stem, capH, code);
@@ -641,6 +783,7 @@ export class StyleAwareGlyphEngine {
         break;
       }
       case '5': {
+        shape = 'round';
         const midY = Math.round(capH * 0.52);
         StemPrimitive.addStem(this.ctx, p, 50, capH - hStem, nominalW - 100, hStem, code);
         StemPrimitive.addStem(this.ctx, p, 50, midY, stem, capH - midY, code);
@@ -648,6 +791,7 @@ export class StyleAwareGlyphEngine {
         break;
       }
       case '6': {
+        shape = 'round';
         const midY = Math.round(capH * 0.55);
         RingPrimitive.addRing(this.ctx, p, 50, 0, nominalW - 100, midY, stem, hStem, code);
         StemPrimitive.addStem(this.ctx, p, 50, 0, stem, capH, code, { topTerminal: true });
@@ -655,17 +799,20 @@ export class StyleAwareGlyphEngine {
         break;
       }
       case '7': {
+        shape = 'straight';
         StemPrimitive.addStem(this.ctx, p, 50, capH - hStem, nominalW - 100, hStem, code);
         DiagonalPrimitive.addDiagonal(this.ctx, p, nominalW - 50, capH, nominalW * 0.35, 0, stem, code);
         break;
       }
       case '8': {
-        const midY = Math.round(capH * 0.50);
+        shape = 'round';
+        const midY = Math.round(capH * 0.5);
         RingPrimitive.addRing(this.ctx, p, 60, midY, nominalW - 120, capH - midY, stem, hStem, code);
         RingPrimitive.addRing(this.ctx, p, 50, 0, nominalW - 100, midY, stem, hStem, code);
         break;
       }
       case '9': {
+        shape = 'round';
         const midY = Math.round(capH * 0.45);
         RingPrimitive.addRing(this.ctx, p, 50, midY, nominalW - 100, capH - midY, stem, hStem, code);
         StemPrimitive.addStem(this.ctx, p, nominalW - 50 - stem, 0, stem, capH, code, { botTerminal: true });
@@ -674,12 +821,14 @@ export class StyleAwareGlyphEngine {
       }
     }
 
-    return new Glyph({
-      name: char,
-      unicode: code,
-      advanceWidth: this.ctx.getAdvanceWidth(nominalW),
-      path: p,
-    });
+    return this.sanitizeGlyph(
+      new Glyph({
+        name: char,
+        unicode: code,
+        advanceWidth: this.ctx.getAdvanceWidth(nominalW, shape),
+        path: p,
+      })
+    );
   }
 
   // =========================================================================
@@ -691,16 +840,19 @@ export class StyleAwareGlyphEngine {
     const stem = this.ctx.stem;
     const hStem = this.ctx.hStem;
     let nominalW = 280;
+    let shape: 'straight' | 'round' | 'diagonal_left' | 'diagonal_right' | 'open_right' | 'open_left' | 'narrow' | 'wide' = 'straight';
 
     switch (char) {
       case '.': {
         nominalW = 260;
+        shape = 'narrow';
         const cX = Math.round((nominalW - stem) / 2);
         StemPrimitive.addStem(this.ctx, p, cX, 0, stem, stem, code);
         break;
       }
       case ',': {
         nominalW = 260;
+        shape = 'narrow';
         const cX = Math.round((nominalW - stem) / 2);
         StemPrimitive.addStem(this.ctx, p, cX, 0, stem, stem, code);
         DiagonalPrimitive.addDiagonal(this.ctx, p, cX + stem, stem / 2, cX - 10, -Math.round(stem * 0.8), stem * 0.6, code);
@@ -708,6 +860,7 @@ export class StyleAwareGlyphEngine {
       }
       case '!': {
         nominalW = 280;
+        shape = 'narrow';
         const cX = Math.round((nominalW - stem) / 2);
         StemPrimitive.addStem(this.ctx, p, cX, Math.round(capH * 0.28), stem, Math.round(capH * 0.72), code, { topTerminal: true, botTerminal: true });
         StemPrimitive.addStem(this.ctx, p, cX, 0, stem, stem, code);
@@ -715,6 +868,7 @@ export class StyleAwareGlyphEngine {
       }
       case '?': {
         nominalW = 460;
+        shape = 'round';
         RingPrimitive.addRing(this.ctx, p, 50, Math.round(capH * 0.45), nominalW - 100, Math.round(capH * 0.55), stem, hStem, code);
         const cX = Math.round((nominalW - stem) / 2);
         StemPrimitive.addStem(this.ctx, p, cX, Math.round(capH * 0.26), stem, Math.round(capH * 0.24), code);
@@ -723,6 +877,7 @@ export class StyleAwareGlyphEngine {
       }
       case ':': {
         nominalW = 260;
+        shape = 'narrow';
         const cX = Math.round((nominalW - stem) / 2);
         StemPrimitive.addStem(this.ctx, p, cX, 0, stem, stem, code);
         StemPrimitive.addStem(this.ctx, p, cX, Math.round(this.ctx.xH * 0.7), stem, stem, code);
@@ -730,6 +885,7 @@ export class StyleAwareGlyphEngine {
       }
       case ';': {
         nominalW = 260;
+        shape = 'narrow';
         const cX = Math.round((nominalW - stem) / 2);
         StemPrimitive.addStem(this.ctx, p, cX, 0, stem, stem, code);
         DiagonalPrimitive.addDiagonal(this.ctx, p, cX + stem, stem / 2, cX - 10, -Math.round(stem * 0.8), stem * 0.6, code);
@@ -738,7 +894,7 @@ export class StyleAwareGlyphEngine {
       }
       case '-': {
         nominalW = 380;
-        const midY = Math.round(this.ctx.xH * 0.50);
+        const midY = Math.round(this.ctx.xH * 0.5);
         StemPrimitive.addStem(this.ctx, p, 40, midY - hStem / 2, nominalW - 80, hStem, code);
         break;
       }
@@ -749,7 +905,7 @@ export class StyleAwareGlyphEngine {
       }
       case '+': {
         nominalW = 480;
-        const midY = Math.round(this.ctx.xH * 0.50);
+        const midY = Math.round(this.ctx.xH * 0.5);
         const cX = Math.round((nominalW - stem) / 2);
         StemPrimitive.addStem(this.ctx, p, 40, midY - hStem / 2, nominalW - 80, hStem, code);
         StemPrimitive.addStem(this.ctx, p, cX, midY - (nominalW - 80) / 2, stem, nominalW - 80, code);
@@ -757,7 +913,7 @@ export class StyleAwareGlyphEngine {
       }
       case '=': {
         nominalW = 480;
-        const midY = Math.round(this.ctx.xH * 0.50);
+        const midY = Math.round(this.ctx.xH * 0.5);
         StemPrimitive.addStem(this.ctx, p, 40, midY + Math.round(hStem * 0.8), nominalW - 80, hStem, code);
         StemPrimitive.addStem(this.ctx, p, 40, midY - Math.round(hStem * 1.8), nominalW - 80, hStem, code);
         break;
@@ -767,32 +923,78 @@ export class StyleAwareGlyphEngine {
         DiagonalPrimitive.addDiagonal(this.ctx, p, nominalW - 40, capH, 40, 0, stem, code);
         break;
       }
+      case '\\': {
+        nominalW = 420;
+        DiagonalPrimitive.addDiagonal(this.ctx, p, 40, capH, nominalW - 40, 0, stem, code);
+        break;
+      }
       case '(': {
         nominalW = 320;
+        shape = 'narrow';
         RingPrimitive.addRing(this.ctx, p, 40, -100, (nominalW - 80) * 2, capH + 200, stem, hStem, code);
         break;
       }
       case ')': {
         nominalW = 320;
+        shape = 'narrow';
         RingPrimitive.addRing(this.ctx, p, -(nominalW - 80), -100, (nominalW - 80) * 2, capH + 200, stem, hStem, code);
+        break;
+      }
+      case '[': {
+        nominalW = 320;
+        shape = 'narrow';
+        StemPrimitive.addStem(this.ctx, p, 60, -40, stem, capH + 80, code);
+        StemPrimitive.addStem(this.ctx, p, 60, capH + 40 - hStem, nominalW - 120, hStem, code);
+        StemPrimitive.addStem(this.ctx, p, 60, -40, nominalW - 120, hStem, code);
+        break;
+      }
+      case ']': {
+        nominalW = 320;
+        shape = 'narrow';
+        StemPrimitive.addStem(this.ctx, p, nominalW - 60 - stem, -40, stem, capH + 80, code);
+        StemPrimitive.addStem(this.ctx, p, 60, capH + 40 - hStem, nominalW - 120, hStem, code);
+        StemPrimitive.addStem(this.ctx, p, 60, -40, nominalW - 120, hStem, code);
+        break;
+      }
+      case '{': {
+        nominalW = 340;
+        shape = 'narrow';
+        const midY = Math.round(capH * 0.5);
+        StemPrimitive.addStem(this.ctx, p, 80, -40, stem, capH + 80, code);
+        StemPrimitive.addStem(this.ctx, p, 40, midY - hStem / 2, 40, hStem, code);
+        StemPrimitive.addStem(this.ctx, p, 80, capH + 40 - hStem, 60, hStem, code);
+        StemPrimitive.addStem(this.ctx, p, 80, -40, 60, hStem, code);
+        break;
+      }
+      case '}': {
+        nominalW = 340;
+        shape = 'narrow';
+        const midY = Math.round(capH * 0.5);
+        StemPrimitive.addStem(this.ctx, p, nominalW - 80 - stem, -40, stem, capH + 80, code);
+        StemPrimitive.addStem(this.ctx, p, nominalW - 80, midY - hStem / 2, 40, hStem, code);
+        StemPrimitive.addStem(this.ctx, p, nominalW - 140, capH + 40 - hStem, 60, hStem, code);
+        StemPrimitive.addStem(this.ctx, p, nominalW - 140, -40, 60, hStem, code);
         break;
       }
       case "'": {
         nominalW = 220;
+        shape = 'narrow';
         const cX = Math.round((nominalW - stem) / 2);
         StemPrimitive.addStem(this.ctx, p, cX, capH - Math.round(stem * 1.6), stem, Math.round(stem * 1.6), code);
         break;
       }
       case '"': {
         nominalW = 340;
+        shape = 'narrow';
         StemPrimitive.addStem(this.ctx, p, 60, capH - Math.round(stem * 1.6), stem, Math.round(stem * 1.6), code);
         StemPrimitive.addStem(this.ctx, p, nominalW - 60 - stem, capH - Math.round(stem * 1.6), stem, Math.round(stem * 1.6), code);
         break;
       }
       case '@': {
         nominalW = 680;
+        shape = 'wide';
         RingPrimitive.addRing(this.ctx, p, 40, 0, nominalW - 80, capH, stem, hStem, code);
-        RingPrimitive.addRing(this.ctx, p, 160, Math.round(capH * 0.25), nominalW - 320, Math.round(capH * 0.50), stem * 0.8, hStem * 0.8, code);
+        RingPrimitive.addRing(this.ctx, p, 160, Math.round(capH * 0.25), nominalW - 320, Math.round(capH * 0.5), stem * 0.8, hStem * 0.8, code);
         break;
       }
       case '#': {
@@ -809,7 +1011,8 @@ export class StyleAwareGlyphEngine {
       }
       case '$': {
         nominalW = 540;
-        const midY = Math.round(capH * 0.50);
+        shape = 'round';
+        const midY = Math.round(capH * 0.5);
         RingPrimitive.addRing(this.ctx, p, 50, midY - hStem / 2, nominalW - 100, capH - midY + hStem / 2, stem, hStem, code);
         RingPrimitive.addRing(this.ctx, p, 50, 0, nominalW - 100, midY + hStem / 2, stem, hStem, code);
         const cX = Math.round((nominalW - stem * 0.6) / 2);
@@ -818,6 +1021,7 @@ export class StyleAwareGlyphEngine {
       }
       case '%': {
         nominalW = 620;
+        shape = 'wide';
         DiagonalPrimitive.addDiagonal(this.ctx, p, nominalW - 50, capH, 50, 0, stem, code);
         RingPrimitive.addRing(this.ctx, p, 50, Math.round(capH * 0.55), Math.round(capH * 0.38), Math.round(capH * 0.38), stem * 0.7, hStem * 0.7, code);
         RingPrimitive.addRing(this.ctx, p, nominalW - 50 - Math.round(capH * 0.38), Math.round(capH * 0.08), Math.round(capH * 0.38), Math.round(capH * 0.38), stem * 0.7, hStem * 0.7, code);
@@ -825,19 +1029,56 @@ export class StyleAwareGlyphEngine {
       }
       case '&': {
         nominalW = 580;
+        shape = 'wide';
         RingPrimitive.addRing(this.ctx, p, 60, Math.round(capH * 0.45), nominalW - 160, Math.round(capH * 0.55), stem, hStem, code);
         RingPrimitive.addRing(this.ctx, p, 50, 0, nominalW - 120, Math.round(capH * 0.55), stem, hStem, code);
         DiagonalPrimitive.addDiagonal(this.ctx, p, 60, 0, nominalW - 40, Math.round(capH * 0.45), stem, code);
         break;
       }
+      case '*': {
+        nominalW = 380;
+        shape = 'narrow';
+        const cX = nominalW / 2;
+        const cY = Math.round(capH * 0.65);
+        const rad = Math.round(capH * 0.18);
+        DiagonalPrimitive.addDiagonal(this.ctx, p, cX - rad, cY, cX + rad, cY, hStem, code);
+        DiagonalPrimitive.addDiagonal(this.ctx, p, cX - rad * 0.7, cY - rad * 0.7, cX + rad * 0.7, cY + rad * 0.7, hStem, code);
+        DiagonalPrimitive.addDiagonal(this.ctx, p, cX - rad * 0.7, cY + rad * 0.7, cX + rad * 0.7, cY - rad * 0.7, hStem, code);
+        break;
+      }
+      case '<': {
+        nominalW = 420;
+        shape = 'straight';
+        const midY = Math.round(this.ctx.xH * 0.5);
+        DiagonalPrimitive.addDiagonal(this.ctx, p, nominalW - 50, this.ctx.xH, 50, midY, stem, code);
+        DiagonalPrimitive.addDiagonal(this.ctx, p, 50, midY, nominalW - 50, 0, stem, code);
+        break;
+      }
+      case '>': {
+        nominalW = 420;
+        shape = 'straight';
+        const midY = Math.round(this.ctx.xH * 0.5);
+        DiagonalPrimitive.addDiagonal(this.ctx, p, 50, this.ctx.xH, nominalW - 50, midY, stem, code);
+        DiagonalPrimitive.addDiagonal(this.ctx, p, nominalW - 50, midY, 50, 0, stem, code);
+        break;
+      }
+      case '~': {
+        nominalW = 440;
+        shape = 'straight';
+        const midY = Math.round(this.ctx.xH * 0.6);
+        StemPrimitive.addStem(this.ctx, p, 40, midY, nominalW - 80, hStem, code);
+        break;
+      }
     }
 
-    return new Glyph({
-      name: char,
-      unicode: code,
-      advanceWidth: this.ctx.getAdvanceWidth(nominalW),
-      path: p,
-    });
+    return this.sanitizeGlyph(
+      new Glyph({
+        name: char,
+        unicode: code,
+        advanceWidth: this.ctx.getAdvanceWidth(nominalW, shape),
+        path: p,
+      })
+    );
   }
 
   // =========================================================================
@@ -891,12 +1132,14 @@ export class StyleAwareGlyphEngine {
       RingPrimitive.addRing(this.ctx, p, 60, Math.round(capH * 0.15), nominalW - 120 - stem, Math.round(capH * 0.55), stem, hStem, d.code);
 
       glyphs.push(
-        new Glyph({
-          name: d.name,
-          unicode: d.code,
-          advanceWidth: this.ctx.getAdvanceWidth(nominalW),
-          path: p,
-        })
+        this.sanitizeGlyph(
+          new Glyph({
+            name: d.name,
+            unicode: d.code,
+            advanceWidth: this.ctx.getAdvanceWidth(nominalW, 'straight'),
+            path: p,
+          })
+        )
       );
     }
   }

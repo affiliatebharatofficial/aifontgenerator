@@ -100,10 +100,13 @@ export class RingPrimitive {
     }
 
     // 4. BUBBLE / SANS / SERIF / STANDARD BEZIER ELLIPTICAL RING
+    const ov = ctx.overshoot;
+    const effY = y - ov;
+    const effH = h + ov * 2;
     const rX = w / 2;
-    const rY = h / 2;
+    const rY = effH / 2;
     const cX = x + rX;
-    const cY = y + rY;
+    const cY = effY + rY;
 
     // Bézier control point multiplier (0.55228 for circular, modified by roundness)
     const kFactor = family === 'BUBBLE' ? 0.58 : 0.55228;
@@ -111,10 +114,10 @@ export class RingPrimitive {
     const kY = rY * kFactor;
 
     // Outer Contour (Clockwise)
-    path.moveTo(ctx.pt(cX, y + h, glyphCode, 250).x, ctx.pt(cX, y + h, glyphCode, 250).y);
+    path.moveTo(ctx.pt(cX, effY + effH, glyphCode, 250).x, ctx.pt(cX, effY + effH, glyphCode, 250).y);
     path.bezierCurveTo(
-      ctx.pt(cX + kX, y + h, glyphCode, 251).x,
-      ctx.pt(cX + kX, y + h, glyphCode, 251).y,
+      ctx.pt(cX + kX, effY + effH, glyphCode, 251).x,
+      ctx.pt(cX + kX, effY + effH, glyphCode, 251).y,
       ctx.pt(x + w, cY + kY, glyphCode, 252).x,
       ctx.pt(x + w, cY + kY, glyphCode, 252).y,
       ctx.pt(x + w, cY, glyphCode, 253).x,
@@ -123,14 +126,14 @@ export class RingPrimitive {
     path.bezierCurveTo(
       ctx.pt(x + w, cY - kY, glyphCode, 254).x,
       ctx.pt(x + w, cY - kY, glyphCode, 254).y,
-      ctx.pt(cX + kX, y, glyphCode, 255).x,
-      ctx.pt(cX + kX, y, glyphCode, 255).y,
-      ctx.pt(cX, y, glyphCode, 256).x,
-      ctx.pt(cX, y, glyphCode, 256).y
+      ctx.pt(cX + kX, effY, glyphCode, 255).x,
+      ctx.pt(cX + kX, effY, glyphCode, 255).y,
+      ctx.pt(cX, effY, glyphCode, 256).x,
+      ctx.pt(cX, effY, glyphCode, 256).y
     );
     path.bezierCurveTo(
-      ctx.pt(cX - kX, y, glyphCode, 257).x,
-      ctx.pt(cX - kX, y, glyphCode, 257).y,
+      ctx.pt(cX - kX, effY, glyphCode, 257).x,
+      ctx.pt(cX - kX, effY, glyphCode, 257).y,
       ctx.pt(x, cY - kY, glyphCode, 258).x,
       ctx.pt(x, cY - kY, glyphCode, 258).y,
       ctx.pt(x, cY, glyphCode, 259).x,
@@ -139,10 +142,10 @@ export class RingPrimitive {
     path.bezierCurveTo(
       ctx.pt(x, cY + kY, glyphCode, 260).x,
       ctx.pt(x, cY + kY, glyphCode, 260).y,
-      ctx.pt(cX - kX, y + h, glyphCode, 261).x,
-      ctx.pt(cX - kX, y + h, glyphCode, 261).y,
-      ctx.pt(cX, y + h, glyphCode, 262).x,
-      ctx.pt(cX, y + h, glyphCode, 262).y
+      ctx.pt(cX - kX, effY + effH, glyphCode, 261).x,
+      ctx.pt(cX - kX, effY + effH, glyphCode, 261).y,
+      ctx.pt(cX, effY + effH, glyphCode, 262).x,
+      ctx.pt(cX, effY + effH, glyphCode, 262).y
     );
     path.close();
 
@@ -181,10 +184,11 @@ export class RingPrimitive {
       ctx.pt(x + w - sX, cY + inKY, glyphCode, 280).x,
       ctx.pt(x + w - sX, cY + inKY, glyphCode, 280).y,
       ctx.pt(cX + inKX, y + h - sY, glyphCode, 281).x,
-      ctx.pt(cX + kX, y + h - sY, glyphCode, 281).y,
+      ctx.pt(cX + inKX, y + h - sY, glyphCode, 281).y,
       ctx.pt(cX, y + h - sY, glyphCode, 282).x,
       ctx.pt(cX, y + h - sY, glyphCode, 282).y
     );
     path.close();
+
   }
 }
