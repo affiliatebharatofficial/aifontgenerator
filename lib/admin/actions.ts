@@ -175,6 +175,48 @@ export async function testAIProviderConnectionAction(
     }
   }
 
+  // Test DeepSeek
+  if (provider === 'deepseek') {
+    const key = process.env.DEEPSEEK_API_KEY;
+    if (!key) {
+      return { success: false, error: 'DEEPSEEK_API_KEY environment variable is unconfigured in .env file.' };
+    }
+
+    try {
+      const res = await fetch('https://api.deepseek.com/v1/models', {
+        headers: { Authorization: `Bearer ${key}` },
+      });
+
+      if (res.ok) {
+        return { success: true, message: `Connected successfully to DeepSeek API (${model}).` };
+      }
+      return { success: false, error: `DeepSeek API returned status ${res.status}. Please check your DEEPSEEK_API_KEY.` };
+    } catch (err: unknown) {
+      return { success: false, error: `DeepSeek connection failed: ${err instanceof Error ? err.message : String(err)}` };
+    }
+  }
+
+  // Test OpenRouter
+  if (provider === 'openrouter') {
+    const key = process.env.OPENROUTER_API_KEY;
+    if (!key) {
+      return { success: false, error: 'OPENROUTER_API_KEY environment variable is unconfigured in .env file.' };
+    }
+
+    try {
+      const res = await fetch('https://openrouter.ai/api/v1/models', {
+        headers: { Authorization: `Bearer ${key}` },
+      });
+
+      if (res.ok) {
+        return { success: true, message: `Connected successfully to OpenRouter API (${model}).` };
+      }
+      return { success: false, error: `OpenRouter API returned status ${res.status}. Please check your OPENROUTER_API_KEY.` };
+    } catch (err: unknown) {
+      return { success: false, error: `OpenRouter connection failed: ${err instanceof Error ? err.message : String(err)}` };
+    }
+  }
+
   return { success: false, error: `Provider ${provider} is not configured for connection test.` };
 }
 
