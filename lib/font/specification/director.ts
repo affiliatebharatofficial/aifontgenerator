@@ -596,23 +596,28 @@ Do NOT wrap in markdown blocks. Output raw JSON only.`;
   public static async synthesizeStyleSpecification(params: {
     prompt: string;
     fontName?: string;
-    category: FontCategory;
-    weight: FontWeight;
-    width: FontWidth;
-    style: FontStyle;
-    characterSet: CharacterSetConfig;
-    advancedSettings: AdvancedSettingsConfig;
+    category?: FontCategory;
+    weight?: FontWeight;
+    width?: FontWidth;
+    style?: FontStyle;
+    characterSet?: Partial<CharacterSetConfig>;
+    advancedSettings?: Partial<AdvancedSettingsConfig>;
     userId?: string;
     generationId?: string;
   }): Promise<FontSpecification> {
+    const category = params.category || 'Sans Serif';
+    const weight = params.weight || 'Regular';
+    const width = params.width || 'Normal';
+    const style = params.style || 'Modern';
+
     // 1. Direct AI Typography Director interpretation
     const directorResult = await this.interpretPromptToDNA(params.prompt, {
-      category: params.category,
-      weight: params.weight,
-      width: params.width,
-      style: params.style,
-      characterSet: params.characterSet,
-      advancedSettings: params.advancedSettings,
+      category,
+      weight,
+      width,
+      style,
+      characterSet: params.characterSet as CharacterSetConfig,
+      advancedSettings: params.advancedSettings as AdvancedSettingsConfig,
       userId: params.userId,
       generationId: params.generationId,
     });
@@ -633,11 +638,11 @@ Do NOT wrap in markdown blocks. Output raw JSON only.`;
         : 'AIFont';
 
     // Devanagari detection
-    const textLower = `${params.prompt} ${params.category} ${params.style}`.toLowerCase();
+    const textLower = `${params.prompt} ${category} ${style}`.toLowerCase();
     const isDevanagariPrompt =
-      params.characterSet.devanagari ||
-      params.category === 'Devanagari' ||
-      dna.styleFamily === ('DEVANAGARI' as unknown) ||
+      Boolean(params.characterSet?.devanagari) ||
+      category === 'Devanagari' ||
+      (dna.styleFamily as string) === 'DEVANAGARI' ||
       textLower.includes('devanagari') ||
       textLower.includes('hindi') ||
       textLower.includes('sanskrit') ||
@@ -645,27 +650,40 @@ Do NOT wrap in markdown blocks. Output raw JSON only.`;
       textLower.includes('देवनागरी');
 
     const charSet: CharacterSetConfig = {
-      ...params.characterSet,
+      uppercase: true,
+      lowercase: true,
+      numbers: true,
+      punctuation: true,
+      ...(params.characterSet || {}),
       devanagari: isDevanagariPrompt,
     };
 
+    const advSettings: AdvancedSettingsConfig = {
+      letterSpacing: 0,
+      contrast: 'medium',
+      cornerStyle: 'sharp',
+      strokeStyle: 'solid',
+      ...(params.advancedSettings || {}),
+    };
+
+
     return {
       fontName: name,
-      category: params.category,
-      weight: params.weight,
-      width: params.width,
-      style: params.style,
+      category: params.category || 'Sans Serif',
+      weight: params.weight || 'Regular',
+      width: params.width || 'Normal',
+      style: params.style || 'Modern',
       unitsPerEm: dna.unitsPerEm,
       ascender,
       descender,
       capHeight,
       xHeight,
       stemWidth,
-      cornerStyle: params.advancedSettings.cornerStyle,
-      contrast: params.advancedSettings.contrast,
-      strokeStyle: params.advancedSettings.strokeStyle,
+      cornerStyle: advSettings.cornerStyle,
+      contrast: advSettings.contrast,
+      strokeStyle: advSettings.strokeStyle,
       characterSet: charSet,
-      advancedSettings: params.advancedSettings,
+      advancedSettings: advSettings,
       designDescription: `${dna.designIntent} (Engine: ${directorResult.providerUsed}/${directorResult.modelUsed})`,
       prompt: params.prompt,
       styleSpec: legacyStyleSpec,
@@ -673,3 +691,4 @@ Do NOT wrap in markdown blocks. Output raw JSON only.`;
     };
   }
 }
+

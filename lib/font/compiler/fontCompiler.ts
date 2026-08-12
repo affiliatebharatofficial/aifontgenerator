@@ -1,6 +1,7 @@
-import { Font } from 'opentype.js';
+import { Font, type Glyph } from 'opentype.js';
 import wawoff2 from 'wawoff2';
 import type { FontSpecification } from '../specification/types';
+import { StyleAwareGlyphEngine } from '../glyphs/styleAwareEngine';
 import { GlyphVectorEngine } from '../glyphs/vectorEngine';
 
 export interface CompiledFontBuffers {
@@ -14,9 +15,17 @@ export class FontCompilerService {
    * Compiles valid TTF, OTF, and WOFF2 binary font buffers from a FontSpecification.
    */
   public static async compileFont(spec: FontSpecification): Promise<CompiledFontBuffers> {
-    // 1. Generate vector glyphs
-    const vectorEngine = new GlyphVectorEngine(spec);
-    const glyphs = vectorEngine.generateGlyphs();
+    // 1. Generate vector glyphs using Style-Aware Glyph Engine (with safe procedural fallback)
+    let glyphs: Glyph[];
+    try {
+      const styleEngine = new StyleAwareGlyphEngine(spec);
+      glyphs = styleEngine.generateGlyphs();
+    } catch (engineErr) {
+      console.warn('StyleAwareGlyphEngine error, invoking safe fallback to GlyphVectorEngine:', engineErr);
+      const fallbackEngine = new GlyphVectorEngine(spec);
+      glyphs = fallbackEngine.generateGlyphs();
+    }
+
 
     // Clean family and style names for PostScript compliance
     const familyName = (spec.fontName || 'AIFont').replace(/[^a-zA-Z0-9\s_-]/g, '');
