@@ -74,11 +74,18 @@ export function FontResultClientView({
             </Link>
 
             <Link
-              href={`/font/${selectedGen.id}/test`}
+              href={`/font/${selectedGen.id}/studio`}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-xs font-bold uppercase bg-[#e05638] text-white hover:bg-[#c8462a] transition-all cursor-pointer shadow-lg"
             >
               <Sliders className="w-4 h-4" />
-              <span>Test Studio</span>
+              <span>Open in Font Studio</span>
+            </Link>
+
+            <Link
+              href={`/font/${selectedGen.id}/test`}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-md text-xs font-bold uppercase border border-[#27272a] bg-[#18181c] text-[#a1a1aa] hover:text-[#f4f4f5] transition-all cursor-pointer"
+            >
+              <span>Test Suite</span>
             </Link>
           </div>
         </div>

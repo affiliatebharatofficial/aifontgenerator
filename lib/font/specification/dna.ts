@@ -242,3 +242,6 @@ export interface FontStyleDNA {
   generatedVia: 'ai_director' | 'fallback_rule';
 }
 
+export type StyleDNA = FontStyleDNA;
+
+

@@ -185,7 +185,7 @@ async function runDevanagariE2ETest() {
   const bubbleCmdCount = bubbleKra.path.commands.length;
 
   assert(
-    horrorCmdCount !== bubbleCmdCount || horrorKra.path.toPathData() !== bubbleKra.path.toPathData(),
+    horrorCmdCount !== bubbleCmdCount || horrorKra.path.toPathData(2) !== bubbleKra.path.toPathData(2),
     `Horror क्र (${horrorCmdCount} cmds) and Bubble क्र (${bubbleCmdCount} cmds) produce distinct vector outlines`
   );
 
